@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.25)
 
 set(projname "Network_simulator_02")
 project(${projname}
@@ -8,7 +8,7 @@ project(${projname}
 
 message( STATUS "CMAKE_SOURCE_DIR = [${CMAKE_SOURCE_DIR}]" )
 
-set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD 17)
 
 set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -Wall -Wextra")
 set(CMAKE_C_FLAGS_DEBUG  "${CMAKE_C_FLAGS_DEBUG} -Debug ")
