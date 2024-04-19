@@ -3,6 +3,7 @@
 #define PAYLOAD_MAX 100
 #define STRING_MAX 100
 #define MAX_NAME_LENGTH 100
+#define MAX_DNS_NAME_LENGTH 100
 #define TENMILLISEC 10000   /* 10 millisecond sleep */
 
 
@@ -60,3 +61,6 @@ struct packet { /* struct for a packet */
 
 #define PKT_DNS_LOOKUP          10
 #define PKT_DNS_LOOKUP_REPLY    11
+
+// DNS server id
+#define DNS_SERVER_ID 100

@@ -422,7 +422,7 @@ int load_net_data_file() {
     if (node_num < 1) {
         printf("net.c: No nodes\n");
         fclose(fp);
-        return (0);
+        return (EXIT_SUCCESS);
     } else {
         g_net_node = (struct net_node *) malloc(sizeof(struct net_node) * node_num);
         for (i = 0; i < node_num; i++) {
@@ -436,16 +436,14 @@ int load_net_data_file() {
                 g_net_node[i].type = SWITCH;
                 g_net_node[i].id = node_id;
             } else if(node_type == 'D') {
+                if (node_id != DNS_SERVER_ID) {
+                    fprintf(stderr, "Can only have one DNS server, must have id 100\n");
+                    exit(EXIT_FAILURE);
+                }
                 g_net_node[i].type = SERVER;
                 g_net_node[i].id = node_id;
             } else {
                 printf(" net.c: Unidentified Node Type\n");
-            }
-
-            if (i != node_id) {
-                fprintf(stderr, " net.c: Incorrect node id %i\n", node_id);
-                fclose(fp);
-                return (0);
             }
         }
     }

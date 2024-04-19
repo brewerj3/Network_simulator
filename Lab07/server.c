@@ -19,7 +19,6 @@
 #include "packet.h"
 #include "net.h"
 
-#define MAX_NAME_LENGTH 100
 #define NAME_TABLE_SIZE 256
 
 typedef enum {
@@ -83,6 +82,10 @@ int server_job_q_num(ServerJobQueue *job_q) {
 }
 
 void server_main(int server_id) {
+    if (server_id != DNS_SERVER_ID) {
+        fprintf(stderr, "Invalid DNS server ID\n");
+        exit(EXIT_FAILURE);
+    }
     struct net_port *node_port_list;
     struct net_port **node_port;
 
@@ -104,11 +107,11 @@ void server_main(int server_id) {
 
     // Create DNS naming table
     bool is_registered[NAME_TABLE_SIZE];
-    char name_table[NAME_TABLE_SIZE][MAX_NAME_LENGTH + 1];
+    char name_table[NAME_TABLE_SIZE][MAX_DNS_NAME_LENGTH + 1];
 
     // Initialize values
     for (size_t iter = 0; iter < NAME_TABLE_SIZE; iter++) {
-        memset(name_table[iter], 0, MAX_NAME_LENGTH);
+        memset(name_table[iter], 0, MAX_DNS_NAME_LENGTH);
         is_registered[iter] = false;
     }
 
@@ -210,7 +213,7 @@ void server_main(int server_id) {
                     break;
                 }
                 case JOB_REGISTER_NEW_DOMAIN: {
-                    if (strnlen(new_job->packet->payload, PAYLOAD_MAX) > MAX_NAME_LENGTH) {
+                    if (strnlen(new_job->packet->payload, PAYLOAD_MAX) > MAX_DNS_NAME_LENGTH) {
                         registration_attempt_status = NAME_TOO_LONG;
                     } else if (is_registered[(int) new_job->packet->src]) {
                         registration_attempt_status = ALREADY_REGISTERED;
