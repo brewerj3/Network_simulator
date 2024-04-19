@@ -958,12 +958,42 @@ _Noreturn void host_main(int host_id) {
                     break;
                 }
                 case JOB_DNS_DOWNLOAD_WAIT_FOR_REPLY: {
+                    if (dns_lookup_received) {
+                        if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
+                            strncpy(man_reply_msg, "DNS lookup failed.", MAN_MSG_LENGTH);
+                            write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                            free(new_job);
+                        } else {
+                            dns_lookup_response = (int) dns_lookup_buffer[0];
+                            new_packet = (struct packet *) malloc(sizeof(struct packet));
+                            new_packet->src = (char) host_id;
+                            new_packet->dst = (char) dns_lookup_response;
+                            new_packet->type = (char) PKT_FILE_DOWNLOAD_REQ;
+                            strncpy(new_packet->payload, new_job->fname_download, PKT_PAYLOAD_MAX);
+                            new_packet->length = strnlen(new_packet->payload, PKT_PAYLOAD_MAX);
 
+                            free(new_job);
+
+                            new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
+                            new_job2->packet = new_packet;
+                            new_job2->type = JOB_SEND_PKT_ALL_PORTS;
+                            job_q_add(&job_q, new_job2);
+                        }
+                        memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
+                        dns_lookup_received = false;
+                    } else if (new_job->ping_timer > 1) {
+                        new_job->ping_timer--;
+                        job_q_add(&job_q, new_job);
+                    } else {
+                        strncpy(man_reply_msg, "DNS lookup time out", MAN_MSG_LENGTH);
+                        write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                        free(new_job);
+                    }
+                    break;
                 }
             }
 
         }
-
 
         /* The host goes to sleep for 10 ms */
         usleep(TENMILLISEC);
