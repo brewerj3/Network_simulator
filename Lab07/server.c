@@ -262,7 +262,7 @@ void server_main(int server_id) {
                         }
                         case ALREADY_REGISTERED: {
                             new_packet->length = 1;
-                            new_packet->payload[0];
+                            new_packet->payload[0] = 'A';
                             break;
                         }
                         default: {

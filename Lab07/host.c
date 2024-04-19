@@ -9,6 +9,7 @@
 
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdbool.h>
 
 #include "net.h"
 #include "man.h"
@@ -209,14 +210,18 @@ _Noreturn void host_main(int host_id) {
 
     int ping_reply_received;
 
-    int dns_register_received;
-    int dns_lookup_received;
+    bool dns_register_received;
+    bool dns_lookup_received;
+
+    int dns_lookup_response;
 
     char dns_register_buffer[MAX_DNS_NAME_LENGTH];
     char dns_lookup_buffer[MAX_DNS_NAME_LENGTH];
 
     int i, k, n;
     int dst;
+
+
     char name[MAX_FILE_NAME];
     char string[PKT_PAYLOAD_MAX + 1];
 
@@ -372,7 +377,7 @@ _Noreturn void host_main(int host_id) {
 
                     // Create a second job to wait for reply
                     new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
-                    dns_register_received = 0;
+                    dns_register_received = false;
                     memset(string, 0, PKT_PAYLOAD_MAX);
                     new_job2->type = JOB_DNS_REGISTER_WAIT_FOR_REPLY;
                     new_job2->ping_timer = 40;
@@ -396,7 +401,7 @@ _Noreturn void host_main(int host_id) {
 
                     // Create a second job to wait for reply
                     new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
-                    dns_lookup_received = 0;
+                    dns_lookup_received = false;
                     memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
                     strncpy(new_job2->fname_download, man_msg, MAX_FILE_NAME);
                     new_job2->type = JOB_DNS_LOOKUP_WAIT_FOR_REPLY;
@@ -422,7 +427,7 @@ _Noreturn void host_main(int host_id) {
 
                     // Create second job to wait for reply
                     new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
-                    dns_lookup_received = 0;
+                    dns_lookup_received = false;
                     new_job2->type = JOB_DNS_PING_WAIT_FOR_REPLY;
                     new_job2->ping_timer = 40;
                     job_q_add(&job_q, new_job2);
@@ -448,7 +453,7 @@ _Noreturn void host_main(int host_id) {
 
                     // Create a second job to wait for reply
                     new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
-                    dns_lookup_received = 0;
+                    dns_lookup_received = false;
                     strncpy(new_job2->fname_download, name, PKT_PAYLOAD_MAX);
                     new_job2->type = JOB_DNS_DOWNLOAD_WAIT_FOR_REPLY;
                     new_job2->ping_timer = 40;
@@ -521,6 +526,19 @@ _Noreturn void host_main(int host_id) {
 					    job_q_add(&job_q, new_job);
 					    break;	
 /* ================================================================ */
+                    case (char) PKT_DNS_REGISTER_REPLY: {
+                        dns_register_received = true;
+                        strncpy(dns_register_buffer, in_packet->payload, PKT_PAYLOAD_MAX);
+                        free(new_job->packet);
+                        free(new_job);
+                        break;
+                    }
+                    case (char) PKT_DNS_LOOKUP_REPLY: {
+                        dns_lookup_received = true;
+                        strncpy(dns_lookup_buffer, new_job->packet->payload, PKT_PAYLOAD_MAX);
+                        free(new_job->packet);
+                        free(new_job);
+                    }
                     default: {
                         free(in_packet);
                         free(new_job);
@@ -738,115 +756,210 @@ _Noreturn void host_main(int host_id) {
                     }
                     break;
                 }
-                case JOB_FILE_DOWNLOAD_SEND:
-
-		
-			if (dir_valid == 1) {
-				n = sprintf(name, "./%s/%s", dir , new_job->packet->payload);
-				name[n] = '\0';
-//printf("name array: %s\n", name);				
-				fp = fopen(name, "r");
-				fseek(fp, 0L, SEEK_END);
-				int s = ftell(fp);
+                case JOB_FILE_DOWNLOAD_SEND: {
+                    if (dir_valid == 1) {
+                        n = sprintf(name, "./%s/%s", dir , new_job->packet->payload);
+                        name[n] = '\0';
+//printf("name array: %s\n", name);
+                        fp = fopen(name, "r");
+                        fseek(fp, 0L, SEEK_END);
+                        int s = ftell(fp);
 //printf("file pointer: %d\n",s);
-				rewind(fp);
-				if (fp != NULL) {
-				      
-					new_packet = (struct packet *) 
-						malloc(sizeof(struct packet));
-					new_packet->dst 
-						= new_job->packet->src;
-					new_packet->src = (char) host_id;
-					new_packet->type 
-						= PKT_FILE_DOWNLOAD_START;
-					for (i=0; 
-						new_job->packet->payload[i]!= '\0'; 
-						i++) {
-						new_packet->payload[i] = 
-							new_job->packet->payload[i];
-					}
-					new_packet->length = i;
+                        rewind(fp);
+                        if (fp != NULL) {
+
+                            new_packet = (struct packet *)
+                                    malloc(sizeof(struct packet));
+                            new_packet->dst
+                                    = new_job->packet->src;
+                            new_packet->src = (char) host_id;
+                            new_packet->type
+                                    = PKT_FILE_DOWNLOAD_START;
+                            for (i=0;
+                                 new_job->packet->payload[i]!= '\0';
+                                 i++) {
+                                new_packet->payload[i] =
+                                        new_job->packet->payload[i];
+                            }
+                            new_packet->length = i;
 //printf("download file name: %s\n", new_job->packet->payload);
-					new_job2 = (struct host_job *)
-						malloc(sizeof(struct host_job));
-					new_job2->type = JOB_SEND_PKT_ALL_PORTS;
-					new_job2->packet = new_packet;
-					job_q_add(&job_q, new_job2);
-				
-					while(s>0){
-						s -= PKT_PAYLOAD_MAX;
-						new_packet = (struct packet *) 
-							malloc(sizeof(struct packet));
-						new_packet->dst 
-							= new_job->packet->src;
-						
+                            new_job2 = (struct host_job *)
+                                    malloc(sizeof(struct host_job));
+                            new_job2->type = JOB_SEND_PKT_ALL_PORTS;
+                            new_job2->packet = new_packet;
+                            job_q_add(&job_q, new_job2);
+
+                            while(s>0){
+                                s -= PKT_PAYLOAD_MAX;
+                                new_packet = (struct packet *)
+                                        malloc(sizeof(struct packet));
+                                new_packet->dst
+                                        = new_job->packet->src;
+
 //printf("sent file to %d\n", new_packet->dst);
-						
-						new_packet->src = (char) host_id;
-						new_packet->type = PKT_FILE_DOWNLOAD_END;
-						n = fread(string,sizeof(char),PKT_PAYLOAD_MAX, fp);
-						string[n] = '\0';
-						for (i=0; i<n; i++) {
-							new_packet->payload[i] 
-								= string[i];
-						}
+
+                                new_packet->src = (char) host_id;
+                                new_packet->type = PKT_FILE_DOWNLOAD_END;
+                                n = fread(string,sizeof(char),PKT_PAYLOAD_MAX, fp);
+                                string[n] = '\0';
+                                for (i=0; i<n; i++) {
+                                    new_packet->payload[i]
+                                            = string[i];
+                                }
 //	printf("sent packet: %s\n", string);
-						new_packet->length = n;
-					
-						new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
-						new_job2->type = JOB_SEND_PKT_ALL_PORTS;
-						new_job2->packet = new_packet;
-						job_q_add(&job_q, new_job2);
-					}
-					fclose(fp);
+                                new_packet->length = n;
+
+                                new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
+                                new_job2->type = JOB_SEND_PKT_ALL_PORTS;
+                                new_job2->packet = new_packet;
+                                job_q_add(&job_q, new_job2);
+                            }
+                            fclose(fp);
 //					free(new_job->packet);
 //					free(new_job);
-				}
-			}else{
-				printf("Please set host's directory\n");
-			}
-			
-		break;
+                        }
+                    }else{
+                        printf("Please set host's directory\n");
+                    }
+                    break;
+                }
 
-		case JOB_FILE_DOWNLOAD_RECV_START:
-//printf("download recv start dir: %s\n",dir);
-		
-			file_buf_init(&f_buf_download);
-		
-			file_buf_put_name(&f_buf_download, new_job->packet->payload, new_job->packet->length);
+                case JOB_FILE_DOWNLOAD_RECV_START: {
+                    file_buf_init(&f_buf_download);
+                    file_buf_put_name(&f_buf_download, new_job->packet->payload, new_job->packet->length);
 
-//printf("packey payload: %s\n", new_job->packet->payload);
-//printf("name length: %d\n", new_job->packet->length);
+                    free(new_job->packet);
+                    free(new_job);
+                    break;
+                }
+                case JOB_FILE_DOWNLOAD_RECV_END: {
+                    file_buf_add(&f_buf_download, new_job->packet->payload, new_job->packet->length);
 
-//			free(new_job->packet);
-//			free(new_job);
-		break;
-		
-		case JOB_FILE_DOWNLOAD_RECV_END:
-//printf("download content: %s\n", new_job->packet->payload);		
-			file_buf_add(&f_buf_download, new_job->packet->payload,new_job->packet->length);
 
-//			free(new_job->packet);
-//			free(new_job);
+                    if (dir_valid == 1) {
+                        file_buf_get_name(&f_buf_download, string);
+                        n = sprintf(name, "./%s/%s", dir, string);
+                        name[n] = '\0';
+                        fp = fopen(name, "a+");
+                        if (fp != NULL) {
 
-			if (dir_valid == 1) {
-//printf("download recv end dir: %s\n",dir);
-				file_buf_get_name(&f_buf_download, string);
-				n = sprintf(name, "./%s/%s", dir, string);
-				name[n] = '\0';
-//printf("name of download file : %s\n" , name);
-				fp = fopen(name, "a+");
-				if (fp != NULL) {
-				
-					while (f_buf_download.occ > 0) {
-						n = file_buf_remove(&f_buf_download, string,PKT_PAYLOAD_MAX);
-						string[n] = '\0';
-						n = fwrite(string,sizeof(char), n, fp);
-					}
-					fclose(fp);
-				}	
-			}
-		break;
+                            while (f_buf_download.occ > 0) {
+                                n = file_buf_remove(&f_buf_download, string, PKT_PAYLOAD_MAX);
+                                string[n] = '\0';
+                                n = fwrite(string, sizeof(char), n, fp);
+                            }
+                            fclose(fp);
+                        }
+                    }
+                    break;
+                }
+
+                case JOB_DNS_REGISTER_WAIT_FOR_REPLY: {
+                    if (dns_register_received) {
+                        switch (dns_register_buffer[0]) {
+                            case 'S': {
+                                strncpy(man_reply_msg, "Successfully registered domain name", MAN_MSG_LENGTH);
+                                break;
+                            }
+                            case 'L': {
+                                strncpy(man_reply_msg, "Failed to register: Name too long", MAN_MSG_LENGTH);
+                                break;
+                            }
+                            case 'I': {
+                                strncpy(man_reply_msg, "Failed to register: Name is Invalid", MAN_MSG_LENGTH);
+                                break;
+                            }
+                            case 'A': {
+                                strncpy(man_reply_msg, "Failed to register: Already registerd", MAN_MSG_LENGTH);
+                                break;
+                            }
+                            default: {
+                                strncpy(man_reply_msg, "Failed to parse DSN registration response", MAN_MSG_LENGTH);
+                                break;
+                            }
+                        }
+                        write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                        free(new_job);
+                        memset(dns_register_buffer, 0, MAX_DNS_NAME_LENGTH);
+                    } else if (new_job->ping_timer > 1) {
+                        new_job->ping_timer--;
+                        job_q_add(&job_q, new_job);
+                    } else {
+                        strncpy(man_reply_msg, "DNS registration time out", MAN_MSG_LENGTH);
+                        write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                        free(new_job);
+                    }
+                    break;
+                }
+                case JOB_DNS_LOOKUP_WAIT_FOR_REPLY: {
+                    if (dns_lookup_received) {
+                        if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
+                            strncpy(man_reply_msg, "DNS lookup failed", MAN_MSG_LENGTH);
+                        } else {
+                            dns_lookup_response = (int) dns_lookup_buffer[0];
+                            n = sprintf(man_reply_msg, "DNS lookup response %i.", dns_lookup_response);
+                            man_reply_msg[n] = '\0';
+                        }
+                        write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                        free(new_job);
+                        memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
+                    } else if (new_job->ping_timer > 1) {
+                        new_job->ping_timer--;
+                        job_q_add(&job_q, new_job);
+                    } else {
+                        strncpy(man_reply_msg, "DNS lookup timeout", MAN_MSG_LENGTH);
+                        write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                        free(new_job);
+                    }
+                    break;
+                }
+                case JOB_DNS_PING_WAIT_FOR_REPLY: {
+                    if (dns_lookup_received) {
+                        if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
+                            strncpy(man_reply_msg, "DNS lookup failed.", MAN_MSG_LENGTH);
+                            write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                            free(new_job);
+                        } else {
+                            // get host id using the returned value
+                            dns_lookup_response = (int) dns_lookup_buffer[0];
+
+                            // Create a new packet to request ping
+                            new_packet = (struct packet *) malloc(sizeof(struct packet));
+                            new_packet->src = (char) host_id;
+                            new_packet->dst = (char) dns_lookup_response;
+                            new_packet->type = (char) PKT_PING_REQ;
+                            new_packet->length = 0;
+
+                            free(new_job);
+
+                            // Create job to send ping req
+                            new_job = (struct host_job *) malloc(sizeof(struct host_job));
+                            new_job->packet = new_packet;
+                            new_job->type = JOB_SEND_PKT_ALL_PORTS;
+                            job_q_add(&job_q, new_job);
+
+                            // Create job to wait for ping
+                            new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
+                            ping_reply_received = 0;
+                            new_job2->type = JOB_PING_WAIT_FOR_REPLY;
+                            new_job2->ping_timer = 10;
+                            job_q_add(&job_q, new_job2);
+                        }
+                        memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
+                        dns_lookup_received = false;
+                    } else if (new_job->ping_timer > 1) {
+                        new_job->ping_timer--;
+                        job_q_add(&job_q, new_job);
+                    } else {
+                        strncpy(man_reply_msg, "DNS lookup time out", MAN_MSG_LENGTH);
+                        write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                        free(new_job);
+                    }
+                    break;
+                }
+                case JOB_DNS_DOWNLOAD_WAIT_FOR_REPLY: {
+
+                }
             }
 
         }
