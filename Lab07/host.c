@@ -308,29 +308,29 @@ _Noreturn void host_main(int host_id) {
                     break;
                 }
 /* =========================== Download a file to a host =========================== */
-			    case 'd':
-				    sscanf(man_msg, "%d %s", &dst, name);
-				    new_packet =(struct packet *) malloc(sizeof(struct packet));
-				    new_packet->src = (char) host_id;
-				    new_packet->dst = (char) dst;
-				    new_packet->type = PKT_FILE_DOWNLOAD_REQ;
-				    for (i=0; name[i] != '\0'; i++) {
-					    new_packet->payload[i] = name[i];
-				    }
-				    new_packet->payload[i] = '\0';
-				    new_packet->length = i;
-				    new_job = (struct host_job *) malloc(sizeof(struct host_job));
-				    new_job->packet = new_packet;
-				    new_job->type = JOB_SEND_PKT_ALL_PORTS;
-				    new_job->file_upload_dst = dst;	//the problem
-				    for (i=0; name[i] != '\0'; i++) {
-					    new_job->fname_download[i] = name[i];
-				    }
-				    new_job->fname_download[i] = '\0';
-				    job_q_add(&job_q, new_job);
+			    case 'd': {
+                    sscanf(man_msg, "%d %s", &dst, name);
+                    new_packet = (struct packet *) malloc(sizeof(struct packet));
+                    new_packet->src = (char) host_id;
+                    new_packet->dst = (char) dst;
+                    new_packet->type = PKT_FILE_DOWNLOAD_REQ;
+                    for (i = 0; name[i] != '\0'; i++) {
+                        new_packet->payload[i] = name[i];
+                    }
+                    new_packet->payload[i] = '\0';
+                    new_packet->length = i;
+                    new_job = (struct host_job *) malloc(sizeof(struct host_job));
+                    new_job->packet = new_packet;
+                    new_job->type = JOB_SEND_PKT_ALL_PORTS;
+                    new_job->file_upload_dst = dst;    //the problem
+                    for (i = 0; name[i] != '\0'; i++) {
+                        new_job->fname_download[i] = name[i];
+                    }
+                    new_job->fname_download[i] = '\0';
+                    job_q_add(&job_q, new_job);
 //				    printf("send download job to host queue\nname: %s\n",new_job->fname_download);
                     break;
-	
+                }
 /* =========================== Upload a file to a host =========================== */    
                 case 'u': {
                     /* Upload a file to a host */
@@ -345,6 +345,10 @@ _Noreturn void host_main(int host_id) {
                     job_q_add(&job_q, new_job);
 
                     break;
+                }
+/* =========================== Register a domain name with DNS server=============*/
+                case 'r': {
+
                 }
                 default:;
             }
