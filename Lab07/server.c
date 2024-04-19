@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include "server.h"
 #include "packet.h"
@@ -49,7 +50,7 @@ typedef struct {
     int occ;
 } ServerJobQueue;
 
-void add_server_job_queue(ServerJobQueue *job_q, struct server_job *job) {
+void server_add_job_queue(ServerJobQueue *job_q, struct server_job *job) {
     if (job_q->head == NULL) {
         job_q->head = job;
         job_q->tail = job;
@@ -90,13 +91,15 @@ void server_main(int server_id) {
     int i, j, k, n;
 
     struct packet *in_packet;
-    struct packer *new_packet;
+    struct packet *new_packet;
 
     struct net_port *p;
     struct server_job *new_job;
     struct server_job *new_job2;
 
-    ServerJobQueue *job_q;
+    RegisterAttempt registration_attempt_status;
+
+    ServerJobQueue job_q;
 
     // Create DNS naming table
     bool is_registered[NAME_TABLE_SIZE];
@@ -129,18 +132,107 @@ void server_main(int server_id) {
     }
 
     // Initialize job queue
-    server_job_q_init(job_q);
-
-    // bool holds register attempt response
-    bool register_attempt;
+    server_job_q_init(&job_q);
 
     while (true) {
+
+        // Get Packets and handle them
         for (k = 0; k < node_port_num; k++) {
             in_packet = (struct packet *) malloc(sizeof(struct packet));
             n = packet_recv(node_port[k], in_packet);
             if (n > 0) {
                 // Handle packets
+                new_job = (struct server_job *) malloc(sizeof(struct server_job));
+                new_job->in_port_index = k;
+                new_job->packet = in_packet;
 
+                switch (in_packet->type) {
+                    case (char) PKT_PING_REQ: {
+                        new_job->type = JOB_PING_SEND_REPLY;
+                        server_add_job_queue(&job_q, new_job);
+                        break;
+                    }
+                    case (char) PKT_DNS_REGISTER: {
+                        new_job->type = JOB_REGISTER_NEW_DOMAIN;
+                        server_add_job_queue(&job_q, new_job);
+                        break;
+                    }
+                    case (char) PKT_DNS_LOOKUP: {
+                        new_job->type = JOB_DNS_PING_REQ;
+                        server_add_job_queue(&job_q, new_job);
+                        break;
+                    }
+                    default: {
+                        free(in_packet);
+                        free(new_job);
+                    }
+                }
+
+            } else {
+                free(in_packet);
+            }
+        }
+
+        // Execute job in job queue
+        if (server_job_q_num(&job_q) > 0) {
+            // Get a job from the queue
+            new_job = server_job_queue_remove(&job_q);
+
+            // Process the job
+            switch (new_job->type) {
+                case JOB_SEND_PKT_ALL_PORTS: {
+                    for (k = 0; k < node_port_num; k++) {
+                        packet_send(node_port[k], new_job->packet);
+                    }
+                    free(new_job->packet);
+                    free(new_job);
+                    break;
+                }
+                case JOB_PING_SEND_REPLY: {
+                    new_packet = (struct packet *) malloc(sizeof(struct packet));
+                    new_packet->dst = new_job->packet->src;
+                    new_packet->src = (char) server_id;
+                    new_packet->type = PKT_PING_REPLY;
+                    new_packet->length = 0;
+
+                    // Create job to send the reply
+                    new_job2 = (struct server_job *) malloc(sizeof(struct server_job));
+                    new_job2->type = JOB_SEND_PKT_ALL_PORTS;
+                    new_job2->packet = new_packet;
+
+                    // Add new job to queue
+                    server_add_job_queue(&job_q, new_job2);
+
+                    // free old job from memory
+                    free(new_job->packet);
+                    free(new_job);
+                    break;
+                }
+                case JOB_REGISTER_NEW_DOMAIN: {
+                    if (strnlen(new_job->packet->payload, PAYLOAD_MAX) > MAX_NAME_LENGTH) {
+                        registration_attempt_status = NAME_TOO_LONG;
+                    } else if (is_registered[(int) new_job->packet->src]) {
+                        registration_attempt_status = ALREADY_REGISTERED;
+                    } else {
+                        registration_attempt_status = SUCCESS;
+                        for (i = 0; i < PAYLOAD_MAX && i < new_job->packet->length; i++) {
+                            if (!isprint(new_job->packet->payload[i])) {
+                                registration_attempt_status = INVALID_NAME;
+                                break;
+                            }
+                        }
+                    }
+                    if (registration_attempt_status == SUCCESS) {
+                        strncpy()
+                    }
+                    break;
+                }
+                case JOB_DNS_PING_REQ: {
+                    break;
+                }
+                default: {
+
+                }
             }
         }
     }

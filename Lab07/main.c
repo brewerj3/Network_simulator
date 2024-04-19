@@ -12,6 +12,7 @@
 #include "man.h"
 #include "host.h"
 #include "switch.h"
+#include "server.h"
 
 int main(void) {
 
@@ -45,6 +46,8 @@ int main(void) {
             } else if (p_node->type == SWITCH) {
                 /* Execute switch routine, which you have to write */
                 switch_main(p_node->id);
+            } else if (p_node->type == SERVER) {
+                server_main(p_node->id);
             }
             return 1;
         }
