@@ -14,13 +14,14 @@ set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -Wall -Wextra")
 set(CMAKE_C_FLAGS_DEBUG  "${CMAKE_C_FLAGS_DEBUG} -Debug ")
 
 add_executable(net367
-        main.c main.h
-        packet.c packet.h
-        host.c host.h
-        net.c net.h
-        man.c man.h
-        switch.c switch.h)
+        Lab07/main.c Lab07/main.h
+        Lab07/host.c Lab07/host.h
+        Lab07/man.c Lab07/man.h
+        Lab07/net.c Lab07/net.h
+        Lab07/packet.c Lab07/packet.h
+        Lab07/switch.c Lab07/switch.c
+        Lab07/server.c Lab07/server.h)
 
-file(COPY p2p.config DESTINATION ${CMAKE_BINARY_DIR})
-file(COPY p2p2.config DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY Lab05/p2p.config DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY Lab05/p2p2.config DESTINATION ${CMAKE_BINARY_DIR})
 
