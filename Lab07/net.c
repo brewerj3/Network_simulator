@@ -443,7 +443,7 @@ int load_net_data_file() {
             }
 
             if (i != node_id) {
-                printf(" net.c: Incorrect node id\n");
+                fprintf(stderr, " net.c: Incorrect node id %i\n", node_id);
                 fclose(fp);
                 return (0);
             }

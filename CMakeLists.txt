@@ -22,6 +22,7 @@ add_executable(net367
         Lab07/switch.c Lab07/switch.c
         Lab07/server.c Lab07/server.h)
 
-file(COPY Lab05/p2p.config DESTINATION ${CMAKE_BINARY_DIR})
-file(COPY Lab05/p2p2.config DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY p2p.config DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY p2p2.config DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY pDNSp.config DESTINATION ${CMAKE_BINARY_DIR})
 

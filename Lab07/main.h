@@ -57,4 +57,6 @@ struct packet { /* struct for a packet */
 
 #define PKT_DNS_REGISTER        8
 #define PKT_DNS_REGISTER_REPLY  9
+
 #define PKT_DNS_LOOKUP          10
+#define PKT_DNS_LOOKUP_REPLY    11

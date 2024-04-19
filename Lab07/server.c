@@ -89,6 +89,7 @@ void server_main(int server_id) {
     int node_port_num;
 
     int i, j, k, n;
+    int dns_host_id_return;
 
     struct packet *in_packet;
     struct packet *new_packet;
@@ -222,16 +223,92 @@ void server_main(int server_id) {
                             }
                         }
                     }
+                    // if successful, store name in name_table
                     if (registration_attempt_status == SUCCESS) {
-                        strncpy()
+                        strncpy(name_table[(int) new_job->packet->src], new_job->packet->payload, new_job->packet->length);
+                        is_registered[(int) new_job->packet->src] = true;
                     }
+
+                    // Create DNS registration reply packet
+                    new_packet = (struct packet *) malloc(sizeof(struct packet));
+                    new_packet->dst = new_job->packet->src;
+                    new_packet->src = (char) server_id;
+                    new_packet->type = PKT_DNS_REGISTER_REPLY;
+
+                    // Create job for DNS reply
+                    new_job2 = (struct server_job *) malloc(sizeof(struct server_job));
+                    new_job2->type = JOB_SEND_PKT_ALL_PORTS;
+                    new_job2->packet = new_packet;
+
+                    switch (registration_attempt_status) {
+                        case SUCCESS: {
+                            new_packet->length = 1;
+                            new_packet->payload[0] = 'S';
+                            break;
+                        }
+
+                        case NAME_TOO_LONG: {
+                            new_packet->length = 1;
+                            new_packet->payload[0] = 'L';
+                            break;
+                        }
+                        case INVALID_NAME: {
+                            new_packet->length = 1;
+                            new_packet->payload[0] = 'I';
+                            break;
+                        }
+                        case ALREADY_REGISTERED: {
+                            new_packet->length = 1;
+                            new_packet->payload[0];
+                            break;
+                        }
+                        default: {
+                            free(new_packet);
+                            free(new_job);
+                            goto done;
+                        }
+                    }
+                    server_add_job_queue(&job_q, new_job2);
+                    done:
+                    free(new_job->packet);
+                    free(new_job);
                     break;
                 }
                 case JOB_DNS_PING_REQ: {
+                    for (i = 0; i < NAME_TABLE_SIZE; i++) {
+                        if (strncmp(new_job->packet->payload, name_table[i], new_job->packet->length) == 0) {
+                            dns_host_id_return = i;
+                            break;
+                        }
+                    }
+
+                    // Create reply packet
+                    new_packet = (struct packet *) malloc(sizeof(struct packet));
+                    new_packet->dst = new_job->packet->src;
+                    new_packet->src = (char) server_id;
+                    new_packet->type = PKT_DNS_LOOKUP_REPLY;
+                    if (dns_host_id_return > NAME_TABLE_SIZE || is_registered[dns_host_id_return] == false) {
+                        new_packet->length = 4;
+                        strncpy(new_packet->payload, "FAIL", 4);
+                    } else {
+                        new_packet->length = 1;
+                        new_packet->payload[0] = (char) dns_host_id_return;
+                    }
+
+                    // Create job for DNS lookup reply
+                    new_job2 = (struct server_job *) malloc(sizeof(struct server_job));
+                    new_job2->type = JOB_SEND_PKT_ALL_PORTS;
+                    new_job2->packet = new_packet;
+
+                    // Add job to queue
+                    server_add_job_queue(&job_q, new_job2);
+                    free(new_job->packet);
+                    free(new_job);
                     break;
                 }
                 default: {
-
+                    free(new_job->packet);
+                    free(new_job);
                 }
             }
         }
