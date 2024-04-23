@@ -360,7 +360,6 @@ _Noreturn void host_main(int host_id) {
                 }
 /* =========================== Register a domain name with DNS server=============*/
                 case 'r': {
-                    printf("man msg: |%s\n", man_msg);
                     new_packet = (struct packet *) malloc(sizeof(struct packet));
                     new_packet->src = (char) host_id;
                     new_packet->dst = (char) 100;
@@ -900,21 +899,23 @@ _Noreturn void host_main(int host_id) {
                 case JOB_DNS_LOOKUP_WAIT_FOR_REPLY: {
                     if (dns_lookup_received) {
                         if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
-                            strncpy(man_reply_msg, "DNS lookup failed", MAN_MSG_LENGTH);
+                            n = sprintf(man_reply_msg, "DNS lookup failed");
+                            man_reply_msg[n] = '\0';
                         } else {
                             dns_lookup_response = (int) dns_lookup_buffer[0];
                             n = sprintf(man_reply_msg, "DNS lookup response %i.", dns_lookup_response);
                             man_reply_msg[n] = '\0';
                         }
-                        write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                        write(man_port->send_fd, man_reply_msg, n + 1);
                         free(new_job);
                         memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
                     } else if (new_job->ping_timer > 1) {
                         new_job->ping_timer--;
                         job_q_add(&job_q, new_job);
                     } else {
-                        strncpy(man_reply_msg, "DNS lookup timeout", MAN_MSG_LENGTH);
-                        write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                        n = sprintf(man_reply_msg, "DNS lookup timeout");
+                        man_reply_msg[n] = '\0';
+                        write(man_port->send_fd, man_reply_msg, n + 1);
                         free(new_job);
                     }
                     break;
@@ -922,8 +923,9 @@ _Noreturn void host_main(int host_id) {
                 case JOB_DNS_PING_WAIT_FOR_REPLY: {
                     if (dns_lookup_received) {
                         if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
-                            strncpy(man_reply_msg, "DNS lookup failed.", MAN_MSG_LENGTH);
-                            write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                            n = sprintf(man_reply_msg, "DNS lookup failed");
+                            man_reply_msg[n] = '\0';
+                            write(man_port->send_fd, man_reply_msg, n + 1);
                             free(new_job);
                         } else {
                             // get host id using the returned value
@@ -957,7 +959,8 @@ _Noreturn void host_main(int host_id) {
                         new_job->ping_timer--;
                         job_q_add(&job_q, new_job);
                     } else {
-                        strncpy(man_reply_msg, "DNS lookup time out", MAN_MSG_LENGTH);
+                        n = sprintf(man_reply_msg, "DNS lookup time out");
+                        man_reply_msg[n] = '\0';
                         write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
                         free(new_job);
                     }
@@ -966,8 +969,9 @@ _Noreturn void host_main(int host_id) {
                 case JOB_DNS_DOWNLOAD_WAIT_FOR_REPLY: {
                     if (dns_lookup_received) {
                         if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
-                            strncpy(man_reply_msg, "DNS lookup failed.", MAN_MSG_LENGTH);
-                            write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                            n = sprintf(man_reply_msg, "DNS lookup failed");
+                            man_reply_msg[n] = '\0';
+                            write(man_port->send_fd, man_reply_msg, n + 1);
                             free(new_job);
                         } else {
                             dns_lookup_response = (int) dns_lookup_buffer[0];
@@ -975,8 +979,11 @@ _Noreturn void host_main(int host_id) {
                             new_packet->src = (char) host_id;
                             new_packet->dst = (char) dns_lookup_response;
                             new_packet->type = (char) PKT_FILE_DOWNLOAD_REQ;
-                            strncpy(new_packet->payload, new_job->fname_download, PKT_PAYLOAD_MAX);
-                            new_packet->length = strnlen(new_packet->payload, PKT_PAYLOAD_MAX);
+                            for (i = 0; i < PAYLOAD_MAX && new_job->fname_download[i] != '\0'; i++) {
+                                new_packet->payload[i] = new_job->fname_download[i];
+                            }
+                            new_packet->payload[i] = '\0';
+                            new_packet->length = i;
 
                             free(new_job);
 
