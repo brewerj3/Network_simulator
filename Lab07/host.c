@@ -360,6 +360,7 @@ _Noreturn void host_main(int host_id) {
                 }
 /* =========================== Register a domain name with DNS server=============*/
                 case 'r': {
+                    printf("man msg: |%s\n", man_msg);
                     new_packet = (struct packet *) malloc(sizeof(struct packet));
                     new_packet->src = (char) host_id;
                     new_packet->dst = (char) 100;
@@ -857,29 +858,33 @@ _Noreturn void host_main(int host_id) {
 
                 case JOB_DNS_REGISTER_WAIT_FOR_REPLY: {
                     if (dns_register_received) {
+                        //printf("\nDNS register buffer: |%s\n", dns_register_buffer);
+                        //printf("Length%zu\n", strnlen(dns_register_buffer, 100));
+                        memset(man_reply_msg, 0, MAN_MSG_LENGTH);
                         switch (dns_register_buffer[0]) {
                             case 'S': {
-                                strncpy(man_reply_msg, "Successfully registered domain name", MAN_MSG_LENGTH);
+                                n = sprintf(man_reply_msg, "Successfully registered domain name");
                                 break;
                             }
                             case 'L': {
-                                strncpy(man_reply_msg, "Failed to register: Name too long", MAN_MSG_LENGTH);
+                                n = sprintf(man_reply_msg, "Failed to register: Name too long");
                                 break;
                             }
                             case 'I': {
-                                strncpy(man_reply_msg, "Failed to register: Name is Invalid", MAN_MSG_LENGTH);
+                                n = sprintf(man_reply_msg, "Failed to register: Name is Invalid");
                                 break;
                             }
                             case 'A': {
-                                strncpy(man_reply_msg, "Failed to register: Already registerd", MAN_MSG_LENGTH);
+                                n = sprintf(man_reply_msg, "Failed to register: Already registered");
                                 break;
                             }
                             default: {
-                                strncpy(man_reply_msg, "Failed to parse DSN registration response", MAN_MSG_LENGTH);
+                                n = sprintf(man_reply_msg, "Failed to parse DNS registration response");
                                 break;
                             }
                         }
-                        write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                        man_reply_msg[n] = '\0';
+                        write(man_port->send_fd, man_reply_msg, n + 1);
                         free(new_job);
                         memset(dns_register_buffer, 0, MAX_DNS_NAME_LENGTH);
                     } else if (new_job->ping_timer > 1) {

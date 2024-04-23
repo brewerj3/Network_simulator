@@ -249,11 +249,13 @@ void dns_register(struct man_port_at_man *curr_host) {
     write(curr_host->send_fd, msg, n);
 
     size_t i = 0;
+
     while (i <= 0) {
         usleep(TENMILLISEC);
         i = read(curr_host->recv_fd, reply, MAN_MSG_LENGTH);
     }
-    reply[n] = '\0';
+    reply[i] = '\0';
+//    printf("%x\n", reply[0]);
     printf("%s\n", reply);
 }
 

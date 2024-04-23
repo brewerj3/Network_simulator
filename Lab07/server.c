@@ -237,6 +237,7 @@ void server_main(int server_id) {
                     new_packet->dst = new_job->packet->src;
                     new_packet->src = (char) server_id;
                     new_packet->type = PKT_DNS_REGISTER_REPLY;
+                    memset(new_packet->payload, 0, PAYLOAD_MAX);
 
                     // Create job for DNS reply
                     new_job2 = (struct server_job *) malloc(sizeof(struct server_job));
@@ -249,7 +250,6 @@ void server_main(int server_id) {
                             new_packet->payload[0] = 'S';
                             break;
                         }
-
                         case NAME_TOO_LONG: {
                             new_packet->length = 1;
                             new_packet->payload[0] = 'L';
@@ -267,7 +267,7 @@ void server_main(int server_id) {
                         }
                         default: {
                             free(new_packet);
-                            free(new_job);
+                            free(new_job2);
                             goto done;
                         }
                     }

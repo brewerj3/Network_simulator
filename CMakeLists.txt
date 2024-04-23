@@ -10,8 +10,8 @@ message( STATUS "CMAKE_SOURCE_DIR = [${CMAKE_SOURCE_DIR}]" )
 
 set(CMAKE_C_STANDARD 17)
 
-set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -Wall -Wextra")
-set(CMAKE_C_FLAGS_DEBUG  "${CMAKE_C_FLAGS_DEBUG} -Debug ")
+#set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -Wall -Wextra")
+#set(CMAKE_C_FLAGS_DEBUG  "${CMAKE_C_FLAGS_DEBUG} -Debug ")
 
 add_executable(net367
         Lab07/main.c Lab07/main.h
