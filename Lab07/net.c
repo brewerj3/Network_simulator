@@ -443,7 +443,7 @@ int load_net_data_file() {
                 g_net_node[i].type = SERVER;
                 g_net_node[i].id = node_id;
             } else {
-                printf(" net.c: Unidentified Node Type\n");
+                printf(" net.c: Unidentified Node Type %i\n", node_id);
             }
         }
     }

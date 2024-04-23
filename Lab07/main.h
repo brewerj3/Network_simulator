@@ -6,7 +6,7 @@
 #define MAX_DNS_NAME_LENGTH 100
 #define TENMILLISEC 10000   /* 10 millisecond sleep */
 
-
+#pragma once
 
 enum NetNodeType { /* Types of network nodes */
 	HOST,

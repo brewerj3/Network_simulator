@@ -11,6 +11,8 @@
 #ifndef NETWORK_SIMULATOR_02_SERVER_H
 #define NETWORK_SIMULATOR_02_SERVER_H
 
+#pragma once
+
 _Noreturn void server_main(int server_id);
 
 #endif //NETWORK_SIMULATOR_02_SERVER_H

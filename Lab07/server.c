@@ -91,7 +91,7 @@ void server_main(int server_id) {
 
     int node_port_num;
 
-    int i, j, k, n;
+    int i, k, n;
     int dns_host_id_return;
 
     struct packet *in_packet;
@@ -292,7 +292,7 @@ void server_main(int server_id) {
                     new_packet->type = PKT_DNS_LOOKUP_REPLY;
                     if (dns_host_id_return > NAME_TABLE_SIZE || is_registered[dns_host_id_return] == false) {
                         new_packet->length = 4;
-                        strncpy(new_packet->payload, "FAIL", 4);
+                        strncpy(new_packet->payload, "FAIL", 5);
                     } else {
                         new_packet->length = 1;
                         new_packet->payload[0] = (char) dns_host_id_return;
