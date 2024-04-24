@@ -245,17 +245,15 @@ void dns_register(struct man_port_at_man *curr_host) {
     scanf("%s", domainName);
     printf("\n");
 
-    n = sprintf(msg, "r %s", domainName);
+    n = snprintf(msg, MAX_NAME_LENGTH, "r %s", domainName);
     write(curr_host->send_fd, msg, n);
 
-    size_t i = 0;
-
+    ssize_t i = 0;
     while (i <= 0) {
         usleep(TENMILLISEC);
         i = read(curr_host->recv_fd, reply, MAN_MSG_LENGTH);
     }
     reply[i] = '\0';
-//    printf("%x\n", reply[0]);
     printf("%s\n", reply);
 }
 
@@ -269,15 +267,15 @@ void dns_lookup(struct man_port_at_man *curr_host) {
     scanf("%s", domainName);
     printf("\n");
 
-    n = sprintf(msg, "l %s", domainName);
+    n = snprintf(msg, MAX_NAME_LENGTH, "l %s", domainName);
     write(curr_host->send_fd, msg, n);
 
-    size_t i = 0;
+    ssize_t i = 0;
     while (i <= 0) {
         usleep(TENMILLISEC);
         i = read(curr_host->recv_fd, reply, MAN_MSG_LENGTH);
     }
-    reply[n] = '\0';
+    reply[i] = '\0';
     printf("%s\n", reply);
 }
 
@@ -291,7 +289,7 @@ void dns_ping(struct man_port_at_man *curr_host) {
     scanf("%s", domainName);
     printf("\n");
 
-    n = sprintf(msg, "P %s", domainName);
+    n = snprintf(msg, MAX_NAME_LENGTH,"P %s", domainName);
     write(curr_host->send_fd, msg, n);
 
     size_t i = 0;
@@ -299,7 +297,7 @@ void dns_ping(struct man_port_at_man *curr_host) {
         usleep(TENMILLISEC);
         i = read(curr_host->recv_fd, reply, MAN_MSG_LENGTH);
     }
-    reply[n] = '\0';
+    reply[i] = '\0';
     printf("%s\n", reply);
 }
 
@@ -316,7 +314,7 @@ int dns_file_download(struct man_port_at_man *curr_host) {
     scanf("%s", domainName);
     printf("\n");
 
-    n = sprintf(msg, "D %s %s", domainName, fileName);
+    n = snprintf(msg, MAX_NAME_LENGTH,"D %s %s", domainName, fileName);
     write(curr_host->send_fd, msg, n);
     usleep(TENMILLISEC);
 }

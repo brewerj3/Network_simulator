@@ -228,7 +228,9 @@ void server_main(int server_id) {
                     }
                     // if successful, store name in name_table
                     if (registration_attempt_status == SUCCESS) {
-                        strncpy(name_table[(int) new_job->packet->src], new_job->packet->payload, new_job->packet->length);
+                        n = snprintf(name_table[(int) new_job->packet->src], PAYLOAD_MAX, "%s",
+                                     new_job->packet->payload);
+                        name_table[(int) new_job->packet->src][n] = '\0';
                         is_registered[(int) new_job->packet->src] = true;
                     }
 
@@ -292,7 +294,8 @@ void server_main(int server_id) {
                     new_packet->type = PKT_DNS_LOOKUP_REPLY;
                     if (dns_host_id_return > NAME_TABLE_SIZE || is_registered[dns_host_id_return] == false) {
                         new_packet->length = 4;
-                        strncpy(new_packet->payload, "FAIL", 5);
+                        n = snprintf(new_packet->payload, PAYLOAD_MAX, "FAIL");
+                        new_packet->payload[n] = '\0';
                     } else {
                         new_packet->length = 1;
                         new_packet->payload[0] = (char) dns_host_id_return;

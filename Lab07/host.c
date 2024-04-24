@@ -391,7 +391,8 @@ _Noreturn void host_main(int host_id) {
                     new_packet->src = (char) host_id;
                     new_packet->dst = DNS_SERVER_ID;  // DNS server always has the same ID
                     new_packet->type = (char) PKT_DNS_LOOKUP;
-                    strncpy(new_packet->payload, man_msg, PKT_PAYLOAD_MAX);
+                    n = snprintf(new_packet->payload, PKT_PAYLOAD_MAX, "%s", man_msg);
+                    new_packet->payload[n] = '\0';
                     new_packet->length = strnlen(new_packet->payload, PKT_PAYLOAD_MAX);
 
                     // Create a job to send the packet
@@ -404,20 +405,23 @@ _Noreturn void host_main(int host_id) {
                     new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
                     dns_lookup_received = false;
                     memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
-                    strncpy(new_job2->fname_download, man_msg, MAX_FILE_NAME);
+                    n = snprintf(new_job2->fname_download, MAX_FILE_NAME, "%s", man_msg);
+                    new_job2->fname_download[n] = '\0';
                     new_job2->type = JOB_DNS_LOOKUP_WAIT_FOR_REPLY;
-                    new_job2->ping_timer = 40;
+                    new_job2->ping_timer = 10;
                     job_q_add(&job_q, new_job2);
                     break;
                 }
                 case 'P': {
                     char domain_name[MAX_DNS_NAME_LENGTH];
-                    strncpy(domain_name, man_msg, MAX_DNS_NAME_LENGTH);
+                    n = snprintf(domain_name, MAX_DNS_NAME_LENGTH, "%s", man_msg);
+                    domain_name[n] = '\0';
                     new_packet = (struct packet *) malloc(sizeof(struct packet));
                     new_packet->src = (char) host_id;
                     new_packet->dst = DNS_SERVER_ID;
                     new_packet->type = PKT_DNS_LOOKUP;
-                    strncpy(new_packet->payload, domain_name, PKT_PAYLOAD_MAX);
+                    n = snprintf(new_packet->payload, PKT_PAYLOAD_MAX, "%s", domain_name);
+                    new_packet->payload[n] = '\0';
                     new_packet->length = strnlen(new_packet->payload, PKT_PAYLOAD_MAX);
 
                     // Create a job to send the packet
@@ -430,7 +434,7 @@ _Noreturn void host_main(int host_id) {
                     new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
                     dns_lookup_received = false;
                     new_job2->type = JOB_DNS_PING_WAIT_FOR_REPLY;
-                    new_job2->ping_timer = 40;
+                    new_job2->ping_timer = 10;
                     job_q_add(&job_q, new_job2);
                     break;
                 }
@@ -443,7 +447,8 @@ _Noreturn void host_main(int host_id) {
                     new_packet->src = (char) host_id;
                     new_packet->dst = DNS_SERVER_ID;
                     new_packet->type = (char) PKT_DNS_LOOKUP;
-                    strncpy(new_packet->payload, domain_name, PKT_PAYLOAD_MAX);
+                    n = snprintf(new_packet->payload, PKT_PAYLOAD_MAX, "%s", domain_name);
+                    new_packet->payload[n] = '\0';
                     new_packet->length = strnlen(new_packet->payload, PKT_PAYLOAD_MAX);
 
                     // Create a job to send packet
@@ -455,9 +460,10 @@ _Noreturn void host_main(int host_id) {
                     // Create a second job to wait for reply
                     new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
                     dns_lookup_received = false;
-                    strncpy(new_job2->fname_download, name, PKT_PAYLOAD_MAX);
+                    n = snprintf(new_job2->fname_download, PKT_PAYLOAD_MAX, "%s", name);
+                    new_job2->fname_download[n] = '\0';
                     new_job2->type = JOB_DNS_DOWNLOAD_WAIT_FOR_REPLY;
-                    new_job2->ping_timer = 40;
+                    new_job2->ping_timer = 10;
                     job_q_add(&job_q, new_job);
                     break;
                 }
@@ -529,16 +535,19 @@ _Noreturn void host_main(int host_id) {
 /* ================================================================ */
                     case (char) PKT_DNS_REGISTER_REPLY: {
                         dns_register_received = true;
-                        strncpy(dns_register_buffer, in_packet->payload, PKT_PAYLOAD_MAX);
+                        n = snprintf(dns_register_buffer, PKT_PAYLOAD_MAX, "%s", in_packet->payload);
+                        dns_register_buffer[n] = '\0';
                         free(new_job->packet);
                         free(new_job);
                         break;
                     }
                     case (char) PKT_DNS_LOOKUP_REPLY: {
                         dns_lookup_received = true;
-                        strncpy(dns_lookup_buffer, new_job->packet->payload, PKT_PAYLOAD_MAX);
+                        n = snprintf(dns_lookup_buffer, PKT_PAYLOAD_MAX, "%s", new_job->packet->payload);
+                        dns_lookup_buffer[n] = '\0';
                         free(new_job->packet);
                         free(new_job);
+                        break;
                     }
                     default: {
                         free(in_packet);
@@ -899,14 +908,14 @@ _Noreturn void host_main(int host_id) {
                 }
                 case JOB_DNS_LOOKUP_WAIT_FOR_REPLY: {
                     if (dns_lookup_received) {
+                        dns_lookup_received = false;
                         if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
                             n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup failed");
-                            man_reply_msg[n] = '\0';
                         } else {
                             dns_lookup_response = (int) dns_lookup_buffer[0];
-                            n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup response %i.", dns_lookup_response);
-                            man_reply_msg[n] = '\0';
+                            n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "%s is at %i.", new_job->fname_download, dns_lookup_response);
                         }
+                        man_reply_msg[n] = '\0';
                         write(man_port->send_fd, man_reply_msg, n + 1);
                         free(new_job);
                         memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
