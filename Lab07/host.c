@@ -779,46 +779,35 @@ _Noreturn void host_main(int host_id) {
 //printf("file pointer: %d\n",s);
                         rewind(fp);
                         if (fp != NULL) {
-
-                            new_packet = (struct packet *)
-                                    malloc(sizeof(struct packet));
-                            new_packet->dst
-                                    = new_job->packet->src;
+                            new_packet = (struct packet *) malloc(sizeof(struct packet));
+                            new_packet->dst = new_job->packet->src;
                             new_packet->src = (char) host_id;
-                            new_packet->type
-                                    = PKT_FILE_DOWNLOAD_START;
-                            for (i=0;
-                                 new_job->packet->payload[i]!= '\0';
-                                 i++) {
-                                new_packet->payload[i] =
-                                        new_job->packet->payload[i];
+                            new_packet->type = PKT_FILE_DOWNLOAD_START;
+                            for (i=0; new_job->packet->payload[i]!= '\0'; i++) {
+                                new_packet->payload[i] = new_job->packet->payload[i];
                             }
                             new_packet->length = i;
-//printf("download file name: %s\n", new_job->packet->payload);
-                            new_job2 = (struct host_job *)
-                                    malloc(sizeof(struct host_job));
+                            //printf("download file name: %s\n", new_job->packet->payload);
+                            new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
                             new_job2->type = JOB_SEND_PKT_ALL_PORTS;
                             new_job2->packet = new_packet;
                             job_q_add(&job_q, new_job2);
 
-                            while(s>0){
+                            while (s > 0) {
                                 s -= PKT_PAYLOAD_MAX;
-                                new_packet = (struct packet *)
-                                        malloc(sizeof(struct packet));
-                                new_packet->dst
-                                        = new_job->packet->src;
+                                new_packet = (struct packet *) malloc(sizeof(struct packet));
+                                new_packet->dst = new_job->packet->src;
 
-//printf("sent file to %d\n", new_packet->dst);
+                                //printf("sent file to %d\n", new_packet->dst);
 
                                 new_packet->src = (char) host_id;
                                 new_packet->type = PKT_FILE_DOWNLOAD_END;
                                 n = fread(string,sizeof(char),PKT_PAYLOAD_MAX, fp);
                                 string[n] = '\0';
-                                for (i=0; i<n; i++) {
-                                    new_packet->payload[i]
-                                            = string[i];
+                                for (i=0; i < n; i++) {
+                                    new_packet->payload[i] = string[i];
                                 }
-//	printf("sent packet: %s\n", string);
+                                //	printf("sent packet: %s\n", string);
                                 new_packet->length = n;
 
                                 new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
@@ -827,8 +816,8 @@ _Noreturn void host_main(int host_id) {
                                 job_q_add(&job_q, new_job2);
                             }
                             fclose(fp);
-//					free(new_job->packet);
-//					free(new_job);
+                            // free(new_job->packet);
+                            // free(new_job);
                         }
                     }else{
                         printf("Please set host's directory\n");
