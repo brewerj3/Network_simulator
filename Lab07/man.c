@@ -285,14 +285,14 @@ void dns_ping(struct man_port_at_man *curr_host) {
     char msg[MAN_MSG_LENGTH];
     char reply[MAN_MSG_LENGTH];
 
-    printf("Enter name to lookup with DNS: ");
+    printf("Enter name to ping with DNS: ");
     scanf("%s", domainName);
     printf("\n");
 
     n = snprintf(msg, MAX_NAME_LENGTH,"P %s", domainName);
     write(curr_host->send_fd, msg, n);
 
-    size_t i = 0;
+    ssize_t i = 0;
     while (i <= 0) {
         usleep(TENMILLISEC);
         i = read(curr_host->recv_fd, reply, MAN_MSG_LENGTH);

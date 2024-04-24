@@ -503,35 +503,37 @@ _Noreturn void host_main(int host_id) {
                         break;
                     }
 /* =========================== Upload =========================== */
-				    case (char) PKT_FILE_UPLOAD_START:
-				        new_job->type = JOB_FILE_UPLOAD_RECV_START;
-					    job_q_add(&job_q, new_job);
-					    break;
-				    
-                    case (char) PKT_FILE_UPLOAD_MID:
-					    new_job->type = JOB_FILE_DOWNLOAD_RECV_MID;
-					    job_q_add(&job_q, new_job);
-					    break;
-
-				    case (char) PKT_FILE_UPLOAD_END:
-					    new_job->type = JOB_FILE_UPLOAD_RECV_END;
-					    job_q_add(&job_q, new_job);
-					    break;
+				    case (char) PKT_FILE_UPLOAD_START: {
+                        new_job->type = JOB_FILE_UPLOAD_RECV_START;
+                        job_q_add(&job_q, new_job);
+                        break;
+                    }
+                    case (char) PKT_FILE_UPLOAD_MID: {
+                        new_job->type = JOB_FILE_DOWNLOAD_RECV_MID;
+                        job_q_add(&job_q, new_job);
+                        break;
+                    }
+				    case (char) PKT_FILE_UPLOAD_END: {
+                        new_job->type = JOB_FILE_UPLOAD_RECV_END;
+                        job_q_add(&job_q, new_job);
+                        break;
+                    }
 /* =========================== Download =========================== */
-				    case (char) PKT_FILE_DOWNLOAD_REQ:
-					    new_job->type = JOB_FILE_DOWNLOAD_SEND;
-					    job_q_add(&job_q, new_job);
-					    break;
-
-				    case (char) PKT_FILE_DOWNLOAD_START:
-					    new_job->type = JOB_FILE_DOWNLOAD_RECV_START;
-					    job_q_add(&job_q, new_job);
-					    break;
-
-				    case (char) PKT_FILE_DOWNLOAD_END:
-					    new_job->type = JOB_FILE_DOWNLOAD_RECV_END;
-					    job_q_add(&job_q, new_job);
-					    break;	
+				    case (char) PKT_FILE_DOWNLOAD_REQ: {
+                        new_job->type = JOB_FILE_DOWNLOAD_SEND;
+                        job_q_add(&job_q, new_job);
+                        break;
+                    }
+				    case (char) PKT_FILE_DOWNLOAD_START: {
+                        new_job->type = JOB_FILE_DOWNLOAD_RECV_START;
+                        job_q_add(&job_q, new_job);
+                        break;
+                    }
+				    case (char) PKT_FILE_DOWNLOAD_END: {
+                        new_job->type = JOB_FILE_DOWNLOAD_RECV_END;
+                        job_q_add(&job_q, new_job);
+                        break;
+                    }
 /* ================================================================ */
                     case (char) PKT_DNS_REGISTER_REPLY: {
                         dns_register_received = true;
@@ -939,17 +941,17 @@ _Noreturn void host_main(int host_id) {
                             write(man_port->send_fd, man_reply_msg, n + 1);
                             free(new_job);
                         } else {
+                            free(new_job);
+
                             // get host id using the returned value
-                            dns_lookup_response = (int) dns_lookup_buffer[0];
+                            long tmp = strtol(dns_lookup_buffer, NULL, 10);
 
                             // Create a new packet to request ping
                             new_packet = (struct packet *) malloc(sizeof(struct packet));
                             new_packet->src = (char) host_id;
-                            new_packet->dst = (char) dns_lookup_response;
+                            new_packet->dst = (char) tmp;
                             new_packet->type = (char) PKT_PING_REQ;
                             new_packet->length = 0;
-
-                            free(new_job);
 
                             // Create job to send ping req
                             new_job = (struct host_job *) malloc(sizeof(struct host_job));
@@ -961,7 +963,7 @@ _Noreturn void host_main(int host_id) {
                             new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
                             ping_reply_received = 0;
                             new_job2->type = JOB_PING_WAIT_FOR_REPLY;
-                            new_job2->ping_timer = 10;
+                            new_job2->ping_timer = 40;
                             job_q_add(&job_q, new_job2);
                         }
                         memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
