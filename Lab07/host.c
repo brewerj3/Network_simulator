@@ -932,8 +932,9 @@ _Noreturn void host_main(int host_id) {
                 }
                 case JOB_DNS_PING_WAIT_FOR_REPLY: {
                     if (dns_lookup_received) {
+                        dns_lookup_received = false;
                         if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
-                            n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup failed");
+                            n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS ping failed at lookup stage");
                             man_reply_msg[n] = '\0';
                             write(man_port->send_fd, man_reply_msg, n + 1);
                             free(new_job);
@@ -964,7 +965,6 @@ _Noreturn void host_main(int host_id) {
                             job_q_add(&job_q, new_job2);
                         }
                         memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
-                        dns_lookup_received = false;
                     } else if (new_job->ping_timer > 1) {
                         new_job->ping_timer--;
                         job_q_add(&job_q, new_job);
@@ -978,6 +978,7 @@ _Noreturn void host_main(int host_id) {
                 }
                 case JOB_DNS_DOWNLOAD_WAIT_FOR_REPLY: {
                     if (dns_lookup_received) {
+                        dns_lookup_received = false;
                         if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
                             n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup failed");
                             man_reply_msg[n] = '\0';
@@ -1003,7 +1004,6 @@ _Noreturn void host_main(int host_id) {
                             job_q_add(&job_q, new_job2);
                         }
                         memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
-                        dns_lookup_received = false;
                     } else if (new_job->ping_timer > 1) {
                         new_job->ping_timer--;
                         job_q_add(&job_q, new_job);
