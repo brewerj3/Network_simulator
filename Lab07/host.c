@@ -7,6 +7,9 @@
 #include <string.h>
 #include <sys/types.h>
 
+#include <dirent.h>
+#include <errno.h>
+
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdbool.h>
@@ -137,11 +140,11 @@ int get_man_command(struct man_port_at_host *port, char msg[], char *c) {
  */
 
 /* Send back state of the host to the manager as a text message */
-void reply_display_host_state(struct man_port_at_host *port, char dir[], int dir_valid, int host_id) {
+void reply_display_host_state(struct man_port_at_host *port, char dir[], bool dir_valid, int host_id) {
     int n;
     char reply_msg[MAX_MSG_LENGTH];
 
-    if (dir_valid == 1) {
+    if (dir_valid) {
         n = sprintf(reply_msg, "%s %d", dir, host_id);
     } else {
         n = sprintf(reply_msg, "None %d", host_id);
@@ -198,7 +201,6 @@ _Noreturn void host_main(int host_id) {
 
 /* State */
     char dir[MAX_DIR_NAME];
-    int dir_valid = 0;
 
     char man_msg[MAN_MSG_LENGTH];
     char man_reply_msg[MAN_MSG_LENGTH];
@@ -211,6 +213,7 @@ _Noreturn void host_main(int host_id) {
 
     int ping_reply_received;
 
+    bool dir_valid = false;
     bool dns_register_received;
     bool dns_lookup_received;
 
@@ -274,7 +277,7 @@ _Noreturn void host_main(int host_id) {
 /* Initialize the job queue */
     job_q_init(&job_q);
 
-    while (1) {
+    while (true) {
         /* Execute command from manager, if any */
 
         /* Get command from manager */
@@ -289,11 +292,16 @@ _Noreturn void host_main(int host_id) {
                 }
 
                 case 'm': {
-                    dir_valid = 1;
-                    for (i = 0; man_msg[i] != '\0'; i++) {
+                    DIR *dire = opendir(man_msg);
+                    if (dire) {
+                        dir_valid = true;
+                        for (i = 0; man_msg[i] != '\0'; i++) {
+                            dir[i] = man_msg[i];
+                        }
                         dir[i] = man_msg[i];
+                    } else if (ENONET == errno) {
+                        dir_valid = false;
                     }
-                    dir[i] = man_msg[i];
                     break;
                 }
 
@@ -389,7 +397,7 @@ _Noreturn void host_main(int host_id) {
                     new_packet->type = (char) PKT_DNS_LOOKUP;
                     n = snprintf(new_packet->payload, PKT_PAYLOAD_MAX, "%s", man_msg);
                     new_packet->payload[n] = '\0';
-                    new_packet->length = strnlen(new_packet->payload, PKT_PAYLOAD_MAX);
+                    new_packet->length = n;
 
                     // Create a job to send the packet
                     new_job = (struct host_job *) malloc(sizeof(struct host_job));
@@ -418,7 +426,7 @@ _Noreturn void host_main(int host_id) {
                     new_packet->type = PKT_DNS_LOOKUP;
                     n = snprintf(new_packet->payload, PKT_PAYLOAD_MAX, "%s", domain_name);
                     new_packet->payload[n] = '\0';
-                    new_packet->length = strnlen(new_packet->payload, PKT_PAYLOAD_MAX);
+                    new_packet->length = n;
 
                     // Create a job to send the packet
                     new_job = (struct host_job *) malloc(sizeof(struct host_job));
@@ -439,6 +447,11 @@ _Noreturn void host_main(int host_id) {
                     char file_name[MAX_FILE_NAME];
                     sscanf(man_msg, "%s %s", domain_name, file_name);
 
+#ifdef DEBUG
+                    printf("domain name = %s\n", domain_name);
+                    printf("file name   = %s\n", file_name);
+#endif
+
                     new_packet = (struct packet *) malloc(sizeof(struct packet));
                     new_packet->src = (char) host_id;
                     new_packet->dst = DNS_SERVER_ID;
@@ -456,11 +469,11 @@ _Noreturn void host_main(int host_id) {
                     // Create a second job to wait for reply
                     new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
                     dns_lookup_received = false;
-                    n = snprintf(new_job2->fname_download, PKT_PAYLOAD_MAX, "%s", name);
+                    n = snprintf(new_job2->fname_download, PKT_PAYLOAD_MAX, "%s", file_name);
                     new_job2->fname_download[n] = '\0';
                     new_job2->type = JOB_DNS_DOWNLOAD_WAIT_FOR_REPLY;
                     new_job2->ping_timer = 10;
-                    job_q_add(&job_q, new_job);
+                    job_q_add(&job_q, new_job2);
                     break;
                 }
                 default:;
@@ -625,12 +638,10 @@ _Noreturn void host_main(int host_id) {
 
                 /* This job is for the sending host */
                 case JOB_FILE_UPLOAD_SEND: {
-                    printf("case JOB_FILE_UPLOAD_SEND\n");
                     /* Open file */
-                    if (dir_valid == 1) {
+                    if (dir_valid) {
                         n = sprintf(name, "./%s/%s", dir, new_job->fname_upload);
                         name[n] = '\0';
-                        printf("opening file: %s\n", name);
                         fp = fopen(name, "r");
 
                         if (fp != NULL) {
@@ -662,16 +673,16 @@ _Noreturn void host_main(int host_id) {
                             * has the file contents
                             */
                             // fread returns the number of characters in the file
-                            n = fread(buffer, sizeof(char), MAX_FILE_BUFFER, fp);
+                            size_t num = fread(buffer, sizeof(char), MAX_FILE_BUFFER, fp);
                             fclose(fp);
-                            buffer[n] = '\0'; // NULL terminate buffer
+                            buffer[num] = '\0'; // NULL terminate buffer
 
-                            while (n > MAX_MSG_LENGTH) {
+                            while (num > MAX_MSG_LENGTH) {
                                 strncpy(string, buffer, MAX_MSG_LENGTH);
                                 for (int j = 0; buffer[j] != '\0' || j < MAX_MSG_LENGTH; j++) {
                                     buffer[j] = buffer[j + MAX_MSG_LENGTH];
                                 }
-                                n = n - MAX_MSG_LENGTH;
+                                num = num - MAX_MSG_LENGTH;
                                 new_packet = (struct packet *) malloc(sizeof(struct packet));
                                 new_packet->dst = (char) new_job->file_upload_dst;
                                 new_packet->src = (char) host_id;
@@ -741,6 +752,7 @@ _Noreturn void host_main(int host_id) {
                     file_buf_add(&f_buf_upload, new_job->packet->payload, new_job->packet->length);
                     free(new_job->packet);
                     free(new_job);
+                    break;
                 }
                 case JOB_FILE_UPLOAD_RECV_END: {
                     /*
@@ -752,7 +764,7 @@ _Noreturn void host_main(int host_id) {
                     free(new_job->packet);
                     free(new_job);
 
-                    if (dir_valid == 1) {
+                    if (dir_valid) {
 
                         /*
                          * Get file name from the file buffer
@@ -896,7 +908,6 @@ _Noreturn void host_main(int host_id) {
                 }
                 case JOB_DNS_DOWNLOAD_WAIT_FOR_REPLY: {
                     if (dns_lookup_received) {
-                        printf("test");
                         dns_lookup_received = false;
                         if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
                             n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup failed");

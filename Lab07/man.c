@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/types.h>
 
 #include <unistd.h>
@@ -315,7 +316,9 @@ int dns_file_download(struct man_port_at_man *curr_host) {
     printf("\n");
 
     n = snprintf(msg, MAX_NAME_LENGTH,"D %s %s", domainName, fileName);
+    printf("msg = %s\n", msg);
     write(curr_host->send_fd, msg, n);
+#define DOG
 #ifdef DOG
     char reply[MAN_MSG_LENGTH];
 ssize_t  i = 0;
@@ -342,7 +345,7 @@ void man_main() {
 
     char cmd;          /* Command entered by user */
 
-    while (1) {
+    while (true) {
         /* Get a command from the user */
         cmd = man_get_user_cmd(curr_host->host_id);
 
