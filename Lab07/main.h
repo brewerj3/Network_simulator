@@ -47,20 +47,18 @@ struct packet { /* struct for a packet */
 
 #define PKT_PING_REQ		    0
 #define PKT_PING_REPLY		    1
+
 #define PKT_FILE_UPLOAD_START	2
-#define PKT_FILE_UPLOAD_END	    3
+#define PKT_FILE_UPLOAD_MIDDLE  3
+#define PKT_FILE_UPLOAD_END	    4
 
-#define PKT_FILE_DOWNLOAD_REQ	6
-#define PKT_FILE_DOWNLOAD_START	4	
-#define PKT_FILE_DOWNLOAD_END	5
+#define PKT_FILE_DOWNLOAD_REQ	5
 
-#define PKT_FILE_UPLOAD_MID     7
+#define PKT_DNS_REGISTER        6
+#define PKT_DNS_REGISTER_REPLY  7
 
-#define PKT_DNS_REGISTER        8
-#define PKT_DNS_REGISTER_REPLY  9
-
-#define PKT_DNS_LOOKUP          10
-#define PKT_DNS_LOOKUP_REPLY    11
+#define PKT_DNS_LOOKUP          8
+#define PKT_DNS_LOOKUP_REPLY    9
 
 // DNS server id
-#define DNS_SERVER_ID 100
+#define DNS_SERVER_ID           100
