@@ -625,6 +625,7 @@ _Noreturn void host_main(int host_id) {
 
                 /* This job is for the sending host */
                 case JOB_FILE_UPLOAD_SEND: {
+                    printf("case JOB_FILE_UPLOAD_SEND\n");
                     /* Open file */
                     if (dir_valid == 1) {
                         n = sprintf(name, "./%s/%s", dir, new_job->fname_upload);
@@ -713,6 +714,7 @@ _Noreturn void host_main(int host_id) {
                         }
                         else {  
                             /* Didn't open file */
+                            printf("Invalid directory\n");
                         }
                     }
                 break;
