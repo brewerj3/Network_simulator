@@ -225,6 +225,7 @@ _Noreturn void host_main(int host_id) {
     int i, k, n;
     int dst;
 
+    size_t control_count = 0;
 
     char name[MAX_FILE_NAME];
     char string[PKT_PAYLOAD_MAX + 1];
@@ -278,6 +279,28 @@ _Noreturn void host_main(int host_id) {
     job_q_init(&job_q);
 
     while (true) {
+
+        // Send control packets every so often
+        control_count++;
+        if (control_count >= CONTROL_COUNT_MAX) {
+            control_count = 0;
+
+            // Create a packet to send
+            new_packet = (struct packet *) malloc(sizeof(struct packet));
+            new_packet->src = (char) host_id;
+            new_packet->type = (char) PKT_CONTROL_PKT;
+            new_packet->length = 0;
+            new_packet->payload[PKT_SENDER_TYPE] = 'H';
+            new_packet->payload[PKT_SENDER_CHILD] = 'Y';
+            new_packet->dst = (char) 0;
+
+            // Create a job to send control packet
+            new_job = (struct host_job *) malloc(sizeof(struct host_job));
+            new_job->packet = new_packet;
+            new_job->type = JOB_SEND_PKT_ALL_PORTS;
+            job_q_add(&job_q, new_job);
+        }
+
         /* Execute command from manager, if any */
 
         /* Get command from manager */
@@ -292,10 +315,10 @@ _Noreturn void host_main(int host_id) {
                 }
 
                 case 'm': {
-                    DIR *dire = opendir(man_msg);
-                    if (dire) {
+                    DIR *directory = opendir(man_msg);
+                    if (directory) {
                         dir_valid = true;
-                        for (i = 0; man_msg[i] != '\0'; i++) {
+                        for (i = 0; man_msg[i] != '\0' && i < MAX_DIR_NAME; i++) {
                             dir[i] = man_msg[i];
                         }
                         dir[i] = man_msg[i];
@@ -551,6 +574,11 @@ _Noreturn void host_main(int host_id) {
                         dns_lookup_received = true;
                         n = snprintf(dns_lookup_buffer, PKT_PAYLOAD_MAX, "%s", new_job->packet->payload);
                         dns_lookup_buffer[n] = '\0';
+                        free(new_job->packet);
+                        free(new_job);
+                        break;
+                    }
+                    case (char) PKT_CONTROL_PKT: {
                         free(new_job->packet);
                         free(new_job);
                         break;

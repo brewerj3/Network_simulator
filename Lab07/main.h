@@ -6,6 +6,8 @@
 #define MAX_DNS_NAME_LENGTH 100
 #define TENMILLISEC 10000   /* 10 millisecond sleep */
 
+#define CONTROL_COUNT_MAX 10
+
 #pragma once
 
 enum NetNodeType { /* Types of network nodes */
@@ -59,6 +61,13 @@ struct packet { /* struct for a packet */
 
 #define PKT_DNS_LOOKUP          8
 #define PKT_DNS_LOOKUP_REPLY    9
+
+#define PKT_CONTROL_PKT         10
+
+#define PKT_ROOT_ID         0
+#define PKT_ROOT_DIST       sizeof(int)
+#define PKT_SENDER_TYPE     (sizeof(int) * 2)
+#define PKT_SENDER_CHILD    (sizeof(int) * 2 + 1)
 
 // DNS server id
 #define DNS_SERVER_ID           100

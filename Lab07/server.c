@@ -94,6 +94,8 @@ void server_main(int server_id) {
     int i, k, n;
     int dns_host_id_return;
 
+    size_t control_count = 0;
+
     struct packet *in_packet;
     struct packet *new_packet;
 
@@ -140,6 +142,23 @@ void server_main(int server_id) {
 
     while (true) {
 
+        control_count++;
+        if (control_count >= CONTROL_COUNT_MAX) {
+            control_count = 0;
+            new_packet = (struct packet *) malloc(sizeof(struct packet));
+            new_packet->src = (char) server_id;
+            new_packet->type = (char) PKT_CONTROL_PKT;
+            new_packet->length = 0;
+            new_packet->payload[PKT_SENDER_TYPE] = 'H';
+            new_packet->payload[PKT_SENDER_CHILD] = 'Y';
+            new_packet->dst = (char) 0;
+
+            new_job = (struct server_job *) malloc(sizeof(struct server_job));
+            new_job->packet = new_packet;
+            new_job->type = JOB_SEND_PKT_ALL_PORTS;
+            server_add_job_queue(&job_q, new_job);
+        }
+
         // Get Packets and handle them
         for (k = 0; k < node_port_num; k++) {
             in_packet = (struct packet *) malloc(sizeof(struct packet));
@@ -165,6 +184,10 @@ void server_main(int server_id) {
                         new_job->type = JOB_DNS_PING_REQ;
                         server_add_job_queue(&job_q, new_job);
                         break;
+                    }
+                    case (char) PKT_CONTROL_PKT: {
+                        free(new_job->packet);
+                        free(new_job);
                     }
                     default: {
                         free(in_packet);

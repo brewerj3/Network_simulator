@@ -221,7 +221,6 @@ int file_download(struct man_port_at_man *curr_host) {
     int n, k;
     int host_id;
     int host_or_name;
-//	char domain_name[MAX_DNS_NAME_LENGTH];
     char reply[MAN_MSG_LENGTH];
     char name[MAX_NAME_LENGTH];
     char msg[MAX_NAME_LENGTH];
@@ -318,17 +317,15 @@ int dns_file_download(struct man_port_at_man *curr_host) {
     n = snprintf(msg, MAX_NAME_LENGTH,"D %s %s", domainName, fileName);
     printf("msg = %s\n", msg);
     write(curr_host->send_fd, msg, n);
-#define DOG
-#ifdef DOG
+
     char reply[MAN_MSG_LENGTH];
-ssize_t  i = 0;
+    ssize_t  i = 0;
     while (i <= 0) {
         usleep(TENMILLISEC);
         i = read(curr_host->recv_fd, reply, MAN_MSG_LENGTH);
     }
     reply[i] = '\0';
     printf("%s\n", reply);
-#endif
 }
 
 /***************************** 

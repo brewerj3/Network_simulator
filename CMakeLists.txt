@@ -10,7 +10,7 @@ message( STATUS "CMAKE_SOURCE_DIR = [${CMAKE_SOURCE_DIR}]" )
 
 set(CMAKE_C_STANDARD 17)
 
-#set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -Wall -Wextra")
+set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -Wall -Wextra")
 #set(CMAKE_C_FLAGS_DEBUG  "${CMAKE_C_FLAGS_DEBUG} -Debug ")
 
 add_executable(net367
@@ -25,4 +25,5 @@ add_executable(net367
 file(COPY p2p.config DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY p2p2.config DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY pDNSp.config DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY ring.config DESTINATION ${CMAKE_BINARY_DIR})
 

@@ -15,29 +15,7 @@
 
 #define MAX_LOOKUP_TABLE_SIZE 256
 
-enum switch_job_type {
-    JOB_SEND_PKT_ALL_SWITCH_PORTS, JOB_FORWARD_PACKET
-};
 
-struct switch_job {
-    enum switch_job_type type;
-    struct packet *packet;
-    int in_port_index;
-    int out_port_index;
-    struct switch_job *next;
-};
-
-struct switch_job_queue {
-    struct switch_job *head;
-    struct switch_job *tail;
-    int occ;
-};
-
-struct LookupTable {
-    bool isValid[MAX_LOOKUP_TABLE_SIZE];
-    int port_number[MAX_LOOKUP_TABLE_SIZE];
-};
-
-_Noreturn void switch_main(int host_id);
+_Noreturn void switch_main(int switch_id);
 
 #endif //NETWORK_SIMULATOR_02_SWITCH_H
