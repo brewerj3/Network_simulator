@@ -14,7 +14,17 @@
 #include "switch.h"
 #include "server.h"
 
-int main(void) {
+const char* program_name;
+
+int main(int argc, char *argv[]) {
+    program_name = argv[0];
+    if (argc > 1) {
+        fprintf(stderr, "%s Invalid usage: Too many arguments\n", program_name);
+        exit(EXIT_FAILURE);
+    } else if (argc < 1) {
+        fprintf(stderr, "%s: Unknown error\n", program_name);
+        exit(EXIT_FAILURE);
+    }
 
     pid_t pid;  /* Process id */
     int k = 0;

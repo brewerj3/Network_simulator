@@ -21,10 +21,11 @@
 #include "main.h"
 
 #define MAX_FILE_BUFFER 1000
-#define MAX_MSG_LENGTH 100
-#define MAX_DIR_NAME 100
-#define MAX_FILE_NAME 100
+#define MAX_MSG_LENGTH  100
+#define MAX_DIR_NAME    100
+#define MAX_FILE_NAME   100
 #define PKT_PAYLOAD_MAX 100
+#define PING_TIMER      100
 
 /* Types of packets */
 
@@ -289,7 +290,7 @@ _Noreturn void host_main(int host_id) {
             new_packet = (struct packet *) malloc(sizeof(struct packet));
             new_packet->src = (char) host_id;
             new_packet->type = (char) PKT_CONTROL_PKT;
-            new_packet->length = 0;
+            new_packet->length = PKT_CONTROL_LENGTH;
             new_packet->payload[PKT_SENDER_TYPE] = 'H';
             new_packet->payload[PKT_SENDER_CHILD] = 'Y';
             new_packet->dst = (char) 0;
@@ -345,7 +346,7 @@ _Noreturn void host_main(int host_id) {
                     new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
                     ping_reply_received = 0;
                     new_job2->type = JOB_PING_WAIT_FOR_REPLY;
-                    new_job2->ping_timer = 10;
+                    new_job2->ping_timer = PING_TIMER;
                     job_q_add(&job_q, new_job2);
 
                     break;
@@ -408,7 +409,7 @@ _Noreturn void host_main(int host_id) {
                     dns_register_received = false;
                     memset(string, 0, PKT_PAYLOAD_MAX);
                     new_job2->type = JOB_DNS_REGISTER_WAIT_FOR_REPLY;
-                    new_job2->ping_timer = 40;
+                    new_job2->ping_timer = PING_TIMER;
                     job_q_add(&job_q, new_job2);
                     break;
                 }
@@ -435,7 +436,7 @@ _Noreturn void host_main(int host_id) {
                     n = snprintf(new_job2->fname_download, MAX_FILE_NAME, "%s", man_msg);
                     new_job2->fname_download[n] = '\0';
                     new_job2->type = JOB_DNS_LOOKUP_WAIT_FOR_REPLY;
-                    new_job2->ping_timer = 10;
+                    new_job2->ping_timer = PING_TIMER;
                     job_q_add(&job_q, new_job2);
                     break;
                 }
@@ -461,7 +462,7 @@ _Noreturn void host_main(int host_id) {
                     new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
                     dns_lookup_received = false;
                     new_job2->type = JOB_DNS_PING_WAIT_FOR_REPLY;
-                    new_job2->ping_timer = 10;
+                    new_job2->ping_timer = PING_TIMER;
                     job_q_add(&job_q, new_job2);
                     break;
                 }
@@ -495,7 +496,7 @@ _Noreturn void host_main(int host_id) {
                     n = snprintf(new_job2->fname_download, PKT_PAYLOAD_MAX, "%s", file_name);
                     new_job2->fname_download[n] = '\0';
                     new_job2->type = JOB_DNS_DOWNLOAD_WAIT_FOR_REPLY;
-                    new_job2->ping_timer = 10;
+                    new_job2->ping_timer = PING_TIMER;
                     job_q_add(&job_q, new_job2);
                     break;
                 }
@@ -513,21 +514,34 @@ _Noreturn void host_main(int host_id) {
             in_packet = (struct packet *) malloc(sizeof(struct packet));
             n = packet_recv(node_port[k], in_packet);
 
-            if ((n > 0) && ((int) in_packet->dst == host_id)) {
+            if ((n > 0) && (in_packet->dst == (char) host_id) && in_packet->type != (char) PKT_CONTROL_PKT) {
                 new_job = (struct host_job *) malloc(sizeof(struct host_job));
                 new_job->in_port_index = k;
                 new_job->packet = in_packet;
+
+                if (host_id == 0 && in_packet->type != (char) PKT_CONTROL_PKT) {
+                    printf("host %i receiving non control_pkt on port %i\n"
+                           "src = %i, dst = %i, type = %i, length = %i\n"
+                           , host_id
+                           , k
+                           , new_job->packet->src
+                           , new_job->packet->dst
+                           , new_job->packet->type
+                           , new_job->packet->length);
+                }
 
                 switch (in_packet->type) {
                     /* Consider the packet type */
 
 /* =========================== Ping =========================== */
                     case (char) PKT_PING_REQ: {
+                        printf("host %i ping REQ on port %i\n", host_id, k);
                         new_job->type = JOB_PING_SEND_REPLY;
                         job_q_add(&job_q, new_job);
                         break;
                     }
                     case (char) PKT_PING_REPLY: {
+                        printf("hostid ping RECV = %i\n", host_id);
                         ping_reply_received = 1;
                         free(in_packet);
                         free(new_job);
@@ -578,14 +592,10 @@ _Noreturn void host_main(int host_id) {
                         free(new_job);
                         break;
                     }
-                    case (char) PKT_CONTROL_PKT: {
-                        free(new_job->packet);
-                        free(new_job);
-                        break;
-                    }
                     default: {
                         free(in_packet);
                         free(new_job);
+                        break;
                     }
                 }
             } else {
@@ -602,384 +612,389 @@ _Noreturn void host_main(int host_id) {
             /* Get a new job from the job queue */
             new_job = job_q_remove(&job_q);
 
+            if (new_job != NULL) {
+                /* Send packet on all ports */
+                switch (new_job->type) {
 
-            /* Send packet on all ports */
-            switch (new_job->type) {
-
-                /* Send packets on all ports */
-                case JOB_SEND_PKT_ALL_PORTS: {
-                    for (k = 0; k < node_port_num; k++) {
-                        packet_send(node_port[k], new_job->packet);
-                    }
-                    free(new_job->packet);
-                    free(new_job);
-                    break;
-                }
-
-                /* The next three jobs deal with the pinging process */
-                case JOB_PING_SEND_REPLY: {
-                    /* Send a ping reply packet */
-
-                    /* Create ping reply packet */
-                    new_packet = (struct packet *) malloc(sizeof(struct packet));
-                    new_packet->dst = new_job->packet->src;
-                    new_packet->src = (char) host_id;
-                    new_packet->type = PKT_PING_REPLY;
-                    new_packet->length = 0;
-
-                    /* Create job for the ping reply */
-                    new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
-                    new_job2->type = JOB_SEND_PKT_ALL_PORTS;
-                    new_job2->packet = new_packet;
-
-                    /* Enter job in the job queue */
-                    job_q_add(&job_q, new_job2);
-
-                    /* Free old packet and job memory space */
-                    free(new_job->packet);
-                    free(new_job);
-                    break;
-                }
-
-                case JOB_PING_WAIT_FOR_REPLY: {
-                    /* Wait for a ping reply packet */
-
-                    if (ping_reply_received == 1) {
-                        n = sprintf(man_reply_msg, "Ping acked!");
-                        man_reply_msg[n] = '\0';
-                        write(man_port->send_fd, man_reply_msg, n + 1);
-                        free(new_job);
-                    } else if (new_job->ping_timer > 1) {
-                        new_job->ping_timer--;
-                        job_q_add(&job_q, new_job);
-                    } else { /* Time out */
-                        n = sprintf(man_reply_msg, "Ping time out!");
-                        man_reply_msg[n] = '\0';
-                        write(man_port->send_fd, man_reply_msg, n + 1);
-                        free(new_job);
-                    }
-
-                    break;
-                }
-
-                /* The next three jobs deal with uploading a file */
-
-                /* This job is for the sending host */
-                case JOB_FILE_UPLOAD_SEND: {
-                    /* Open file */
-                    if (dir_valid) {
-                        n = sprintf(name, "./%s/%s", dir, new_job->fname_upload);
-                        name[n] = '\0';
-                        fp = fopen(name, "r");
-
-                        if (fp != NULL) {
-                            char buffer[MAX_FILE_BUFFER + 1];
-                            memset(buffer, 0, MAX_FILE_BUFFER);
-                            /* 
-                            * Create first packet which
-                            * has the file name 
-                            */
-                            new_packet = (struct packet *) malloc(sizeof(struct packet));
-                            new_packet->dst = (char) new_job->file_upload_dst;
-                            new_packet->src = (char) host_id;
-                            new_packet->type  = PKT_FILE_UPLOAD_START;
-                            for (i = 0; new_job->fname_upload[i] != '\0'; i++) {
-                                new_packet->payload[i] = new_job->fname_upload[i];
+                    /* Send packets on all ports */
+                    case JOB_SEND_PKT_ALL_PORTS: {
+                        for (k = 0; k < node_port_num; k++) {
+                            if (new_job->packet->type == (char) PKT_PING_REPLY) {
+                                printf("host %i sending ping reply on port %i\n", host_id, k);
+                                printf("src = %i, dst = %i, type = %i, length = %i\n", new_job->packet->src,
+                                       new_job->packet->dst, new_job->packet->type, new_job->packet->length);
                             }
-                            new_packet->length = i;
+                            packet_send(node_port[k], new_job->packet);
+                        }
+                        free(new_job->packet);
+                        free(new_job);
+                        break;
+                    }
 
-                            /* 
-                            * Create a job to send the packet
-                            * and put it in the job queue
-                            */
-                            new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
-                            new_job2->type = JOB_SEND_PKT_ALL_PORTS;
-                            new_job2->packet = new_packet;
-                            job_q_add(&job_q, new_job2);
-                            /* 
-                            * Create the second packet which
-                            * has the file contents
-                            */
-                            // fread returns the number of characters in the file
-                            size_t num = fread(buffer, sizeof(char), MAX_FILE_BUFFER, fp);
-                            fclose(fp);
-                            buffer[num] = '\0'; // NULL terminate buffer
+                        /* The next three jobs deal with the pinging process */
+                    case JOB_PING_SEND_REPLY: {
+                        /* Send a ping reply packet */
+                        printf("Host %i replying\n", host_id);
+                        /* Create ping reply packet */
+                        new_packet = (struct packet *) malloc(sizeof(struct packet));
+                        new_packet->dst = new_job->packet->src;
+                        new_packet->src = (char) host_id;
+                        new_packet->type = PKT_PING_REPLY;
+                        new_packet->length = 0;
 
-                            while (num > MAX_MSG_LENGTH) {
-                                strncpy(string, buffer, MAX_MSG_LENGTH);
-                                for (int j = 0; buffer[j] != '\0' || j < MAX_MSG_LENGTH; j++) {
-                                    buffer[j] = buffer[j + MAX_MSG_LENGTH];
-                                }
-                                num = num - MAX_MSG_LENGTH;
+                        /* Create job for the ping reply */
+                        new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
+                        new_job2->type = JOB_SEND_PKT_ALL_PORTS;
+                        new_job2->packet = new_packet;
+
+                        /* Enter job in the job queue */
+                        job_q_add(&job_q, new_job2);
+
+                        /* Free old packet and job memory space */
+                        free(new_job->packet);
+                        free(new_job);
+                        break;
+                    }
+
+                    case JOB_PING_WAIT_FOR_REPLY: {
+                        /* Wait for a ping reply packet */
+
+                        if (ping_reply_received == 1) {
+                            n = sprintf(man_reply_msg, "Ping acked!");
+                            man_reply_msg[n] = '\0';
+                            write(man_port->send_fd, man_reply_msg, n + 1);
+                            free(new_job);
+                        } else if (new_job->ping_timer > 1) {
+                            new_job->ping_timer--;
+                            job_q_add(&job_q, new_job);
+                        } else { /* Time out */
+                            n = sprintf(man_reply_msg, "Ping time out!");
+                            man_reply_msg[n] = '\0';
+                            write(man_port->send_fd, man_reply_msg, n + 1);
+                            free(new_job);
+                        }
+
+                        break;
+                    }
+
+                        /* The next three jobs deal with uploading a file */
+
+                        /* This job is for the sending host */
+                    case JOB_FILE_UPLOAD_SEND: {
+                        /* Open file */
+                        if (dir_valid) {
+                            n = sprintf(name, "./%s/%s", dir, new_job->fname_upload);
+                            name[n] = '\0';
+                            fp = fopen(name, "r");
+
+                            if (fp != NULL) {
+                                char buffer[MAX_FILE_BUFFER + 1];
+                                memset(buffer, 0, MAX_FILE_BUFFER);
+                                /*
+                                * Create first packet which
+                                * has the file name
+                                */
                                 new_packet = (struct packet *) malloc(sizeof(struct packet));
                                 new_packet->dst = (char) new_job->file_upload_dst;
                                 new_packet->src = (char) host_id;
-                                new_packet->type = PKT_FILE_UPLOAD_MIDDLE;
-                                // Packet is now created
-
-                                // Fill the payload
-                                for (i = 0; i < MAX_MSG_LENGTH; i++) {
-                                    new_packet->payload[i] = string[i];
+                                new_packet->type = PKT_FILE_UPLOAD_START;
+                                for (i = 0; new_job->fname_upload[i] != '\0'; i++) {
+                                    new_packet->payload[i] = new_job->fname_upload[i];
                                 }
-                                new_packet->length = MAX_MSG_LENGTH;
+                                new_packet->length = i;
 
-                                // Add the job to the job queue
+                                /*
+                                * Create a job to send the packet
+                                * and put it in the job queue
+                                */
                                 new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
                                 new_job2->type = JOB_SEND_PKT_ALL_PORTS;
                                 new_job2->packet = new_packet;
                                 job_q_add(&job_q, new_job2);
+                                /*
+                                * Create the second packet which
+                                * has the file contents
+                                */
+                                // fread returns the number of characters in the file
+                                size_t num = fread(buffer, sizeof(char), MAX_FILE_BUFFER, fp);
+                                fclose(fp);
+                                buffer[num] = '\0'; // NULL terminate buffer
+
+                                while (num > MAX_MSG_LENGTH) {
+                                    strncpy(string, buffer, MAX_MSG_LENGTH);
+                                    for (int j = 0; buffer[j] != '\0' || j < MAX_MSG_LENGTH; j++) {
+                                        buffer[j] = buffer[j + MAX_MSG_LENGTH];
+                                    }
+                                    num = num - MAX_MSG_LENGTH;
+                                    new_packet = (struct packet *) malloc(sizeof(struct packet));
+                                    new_packet->dst = (char) new_job->file_upload_dst;
+                                    new_packet->src = (char) host_id;
+                                    new_packet->type = PKT_FILE_UPLOAD_MIDDLE;
+                                    // Packet is now created
+
+                                    // Fill the payload
+                                    for (i = 0; i < MAX_MSG_LENGTH; i++) {
+                                        new_packet->payload[i] = string[i];
+                                    }
+                                    new_packet->length = MAX_MSG_LENGTH;
+
+                                    // Add the job to the job queue
+                                    new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
+                                    new_job2->type = JOB_SEND_PKT_ALL_PORTS;
+                                    new_job2->packet = new_packet;
+                                    job_q_add(&job_q, new_job2);
+                                }
+                                new_packet = (struct packet *) malloc(sizeof(struct packet));
+                                new_packet->dst = (char) new_job->file_upload_dst;
+                                new_packet->src = (char) host_id;
+                                new_packet->type = PKT_FILE_UPLOAD_END;
+
+                                for (i = 0; i < n; i++) {
+                                    new_packet->payload[i] = buffer[i];
+                                }
+
+                                new_packet->length = n;
+
+                                /*
+                                 * Create a job to send the packet
+                                 * and put the job in the job queue
+                                 */
+
+                                new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
+                                new_job2->type = JOB_SEND_PKT_ALL_PORTS;
+                                new_job2->packet = new_packet;
+                                job_q_add(&job_q, new_job2);
+                                free(new_job);
+                            } else {
+                                /* Didn't open file */
+                                printf("Invalid directory\n");
                             }
-                            new_packet = (struct packet *) malloc(sizeof(struct packet));
-                            new_packet->dst = (char) new_job->file_upload_dst;
-                            new_packet->src = (char) host_id;
-                            new_packet->type = PKT_FILE_UPLOAD_END;
-
-                            for (i = 0; i < n; i++) {
-                                new_packet->payload[i] = buffer[i];
-                            }
-
-                            new_packet->length = n;
-
-                            /*
-                             * Create a job to send the packet
-                             * and put the job in the job queue
-                             */
-
-                            new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
-                            new_job2->type = JOB_SEND_PKT_ALL_PORTS;
-                            new_job2->packet = new_packet;
-                            job_q_add(&job_q, new_job2);
-                            free(new_job);
                         }
-                        else {  
-                            /* Didn't open file */
-                            printf("Invalid directory\n");
-                        }
+                        break;
                     }
-                break;
-                }
 
-                /* The next two jobs are for the receiving host */
+                        /* The next two jobs are for the receiving host */
 
-                case JOB_FILE_UPLOAD_RECV_START: {
+                    case JOB_FILE_UPLOAD_RECV_START: {
 
-                    /* Initialize the file buffer data structure */
-                    file_buf_init(&f_buf_upload);
-
-                    /*
-                     * Transfer the file name in the packet payload
-                     * to the file buffer data structure
-                     */
-                    file_buf_put_name(&f_buf_upload, new_job->packet->payload, new_job->packet->length);
-
-                    free(new_job->packet);
-                    free(new_job);
-                    break;
-                }
-                case JOB_FILE_UPLOAD_RECV_MIDDLE: {
-                    file_buf_add(&f_buf_upload, new_job->packet->payload, new_job->packet->length);
-                    free(new_job->packet);
-                    free(new_job);
-                    break;
-                }
-                case JOB_FILE_UPLOAD_RECV_END: {
-                    /*
-                     * Download packet payload into file buffer
-                     * data structure
-                     */
-                    file_buf_add(&f_buf_upload, new_job->packet->payload, new_job->packet->length);
-
-                    free(new_job->packet);
-                    free(new_job);
-
-                    if (dir_valid) {
+                        /* Initialize the file buffer data structure */
+                        file_buf_init(&f_buf_upload);
 
                         /*
-                         * Get file name from the file buffer
-                         * Then open the file
+                         * Transfer the file name in the packet payload
+                         * to the file buffer data structure
                          */
-                        file_buf_get_name(&f_buf_upload, string);
-                        n = sprintf(name, "./%s/%s", dir, string);
-                        name[n] = '\0';
+                        file_buf_put_name(&f_buf_upload, new_job->packet->payload, new_job->packet->length);
 
-                        fp = fopen(name, "w");
+                        free(new_job->packet);
+                        free(new_job);
+                        break;
+                    }
+                    case JOB_FILE_UPLOAD_RECV_MIDDLE: {
+                        file_buf_add(&f_buf_upload, new_job->packet->payload, new_job->packet->length);
+                        free(new_job->packet);
+                        free(new_job);
+                        break;
+                    }
+                    case JOB_FILE_UPLOAD_RECV_END: {
+                        /*
+                         * Download packet payload into file buffer
+                         * data structure
+                         */
+                        file_buf_add(&f_buf_upload, new_job->packet->payload, new_job->packet->length);
 
-                        if (fp != NULL) {
+                        free(new_job->packet);
+                        free(new_job);
+
+                        if (dir_valid) {
+
                             /*
-                             * Write contents in the file
-                             * buffer into file
+                             * Get file name from the file buffer
+                             * Then open the file
                              */
+                            file_buf_get_name(&f_buf_upload, string);
+                            n = sprintf(name, "./%s/%s", dir, string);
+                            name[n] = '\0';
 
-                            while (f_buf_upload.occ > 0) {
-                                n = file_buf_remove(&f_buf_upload, string, PKT_PAYLOAD_MAX);
-                                string[n] = '\0';
-                                size_t tmp = fwrite(string, sizeof(char), n, fp);
-                            }
+                            fp = fopen(name, "w");
 
-                            fclose(fp);
-                        }
-                    }
-                    break;
-                }
+                            if (fp != NULL) {
+                                /*
+                                 * Write contents in the file
+                                 * buffer into file
+                                 */
 
-                case JOB_DNS_REGISTER_WAIT_FOR_REPLY: {
-                    if (dns_register_received) {
-                        //printf("\nDNS register buffer: |%s\n", dns_register_buffer);
-                        //printf("Length%zu\n", strnlen(dns_register_buffer, 100));
-                        memset(man_reply_msg, 0, MAN_MSG_LENGTH);
-                        switch (dns_register_buffer[0]) {
-                            case 'S': {
-                                n = sprintf(man_reply_msg, "Successfully registered domain name");
-                                break;
-                            }
-                            case 'L': {
-                                n = sprintf(man_reply_msg, "Failed to register: Name too long");
-                                break;
-                            }
-                            case 'I': {
-                                n = sprintf(man_reply_msg, "Failed to register: Name is Invalid");
-                                break;
-                            }
-                            case 'A': {
-                                n = sprintf(man_reply_msg, "Failed to register: Already registered");
-                                break;
-                            }
-                            default: {
-                                n = sprintf(man_reply_msg, "Failed to parse DNS registration response");
-                                break;
+                                while (f_buf_upload.occ > 0) {
+                                    n = file_buf_remove(&f_buf_upload, string, PKT_PAYLOAD_MAX);
+                                    string[n] = '\0';
+                                    size_t tmp = fwrite(string, sizeof(char), n, fp);
+                                }
+
+                                fclose(fp);
                             }
                         }
-                        man_reply_msg[n] = '\0';
-                        write(man_port->send_fd, man_reply_msg, n + 1);
-                        free(new_job);
-                        memset(dns_register_buffer, 0, MAX_DNS_NAME_LENGTH);
-                    } else if (new_job->ping_timer > 1) {
-                        new_job->ping_timer--;
-                        job_q_add(&job_q, new_job);
-                    } else {
-                        n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS registration time out");
-                        man_reply_msg[n] = '\0';
-                        write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
-                        free(new_job);
+                        break;
                     }
-                    break;
-                }
-                case JOB_DNS_LOOKUP_WAIT_FOR_REPLY: {
-                    if (dns_lookup_received) {
-                        dns_lookup_received = false;
-                        if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
-                            n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup failed");
-                        } else {
-                            dns_lookup_response = (int) dns_lookup_buffer[0];
-                            n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "%s is at %i.", new_job->fname_download, dns_lookup_response);
-                        }
-                        man_reply_msg[n] = '\0';
-                        write(man_port->send_fd, man_reply_msg, n + 1);
-                        free(new_job);
-                        memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
-                    } else if (new_job->ping_timer > 1) {
-                        new_job->ping_timer--;
-                        job_q_add(&job_q, new_job);
-                    } else {
-                        n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup timeout");
-                        man_reply_msg[n] = '\0';
-                        write(man_port->send_fd, man_reply_msg, n + 1);
-                        free(new_job);
-                    }
-                    break;
-                }
-                case JOB_DNS_PING_WAIT_FOR_REPLY: {
-                    if (dns_lookup_received) {
-                        dns_lookup_received = false;
-                        if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
-                            n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS ping failed at lookup stage");
+
+                    case JOB_DNS_REGISTER_WAIT_FOR_REPLY: {
+                        if (dns_register_received) {
+                            //printf("\nDNS register buffer: |%s\n", dns_register_buffer);
+                            //printf("Length%zu\n", strnlen(dns_register_buffer, 100));
+                            memset(man_reply_msg, 0, MAN_MSG_LENGTH);
+                            switch (dns_register_buffer[0]) {
+                                case 'S': {
+                                    n = sprintf(man_reply_msg, "Successfully registered domain name");
+                                    break;
+                                }
+                                case 'L': {
+                                    n = sprintf(man_reply_msg, "Failed to register: Name too long");
+                                    break;
+                                }
+                                case 'I': {
+                                    n = sprintf(man_reply_msg, "Failed to register: Name is Invalid");
+                                    break;
+                                }
+                                case 'A': {
+                                    n = sprintf(man_reply_msg, "Failed to register: Already registered");
+                                    break;
+                                }
+                                default: {
+                                    n = sprintf(man_reply_msg, "Failed to parse DNS registration response");
+                                    break;
+                                }
+                            }
                             man_reply_msg[n] = '\0';
                             write(man_port->send_fd, man_reply_msg, n + 1);
                             free(new_job);
-                        } else {
-                            free(new_job);
-
-                            // get host id using the returned value
-                            long tmp = strtol(dns_lookup_buffer, NULL, 10);
-
-                            // Create a new packet to request ping
-                            new_packet = (struct packet *) malloc(sizeof(struct packet));
-                            new_packet->src = (char) host_id;
-                            new_packet->dst = (char) tmp;
-                            new_packet->type = (char) PKT_PING_REQ;
-                            new_packet->length = 0;
-
-                            // Create job to send ping req
-                            new_job = (struct host_job *) malloc(sizeof(struct host_job));
-                            new_job->packet = new_packet;
-                            new_job->type = JOB_SEND_PKT_ALL_PORTS;
+                            memset(dns_register_buffer, 0, MAX_DNS_NAME_LENGTH);
+                        } else if (new_job->ping_timer > 1) {
+                            new_job->ping_timer--;
                             job_q_add(&job_q, new_job);
-
-                            // Create job to wait for ping
-                            new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
-                            ping_reply_received = 0;
-                            new_job2->type = JOB_PING_WAIT_FOR_REPLY;
-                            new_job2->ping_timer = 40;
-                            job_q_add(&job_q, new_job2);
+                        } else {
+                            n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS registration time out");
+                            man_reply_msg[n] = '\0';
+                            write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                            free(new_job);
                         }
-                        memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
-                    } else if (new_job->ping_timer > 1) {
-                        new_job->ping_timer--;
-                        job_q_add(&job_q, new_job);
-                    } else {
-                        n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup time out");
-                        man_reply_msg[n] = '\0';
-                        write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
-                        free(new_job);
+                        break;
                     }
-                    break;
-                }
-                case JOB_DNS_DOWNLOAD_WAIT_FOR_REPLY: {
-                    if (dns_lookup_received) {
-                        dns_lookup_received = false;
-                        if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
-                            n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup failed");
+                    case JOB_DNS_LOOKUP_WAIT_FOR_REPLY: {
+                        if (dns_lookup_received) {
+                            dns_lookup_received = false;
+                            if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
+                                n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup failed");
+                            } else {
+                                dns_lookup_response = (int) dns_lookup_buffer[0];
+                                n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "%s is at %i.", new_job->fname_download,
+                                             dns_lookup_response);
+                            }
                             man_reply_msg[n] = '\0';
                             write(man_port->send_fd, man_reply_msg, n + 1);
                             free(new_job);
+                            memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
+                        } else if (new_job->ping_timer > 1) {
+                            new_job->ping_timer--;
+                            job_q_add(&job_q, new_job);
                         } else {
-                            dns_lookup_response = (int) dns_lookup_buffer[0];
-                            new_packet = (struct packet *) malloc(sizeof(struct packet));
-                            new_packet->src = (char) host_id;
-                            new_packet->dst = (char) dns_lookup_response;
-                            new_packet->type = (char) PKT_FILE_DOWNLOAD_REQ;
-                            for (i = 0; i < PAYLOAD_MAX && new_job->fname_download[i] != '\0'; i++) {
-                                new_packet->payload[i] = new_job->fname_download[i];
-                            }
-                            new_packet->payload[i] = '\0';
-                            new_packet->length = i;
+                            n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup timeout");
+                            man_reply_msg[n] = '\0';
+                            write(man_port->send_fd, man_reply_msg, n + 1);
+                            free(new_job);
+                        }
+                        break;
+                    }
+                    case JOB_DNS_PING_WAIT_FOR_REPLY: {
+                        if (dns_lookup_received) {
+                            dns_lookup_received = false;
+                            if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
+                                n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS ping failed at lookup stage");
+                                man_reply_msg[n] = '\0';
+                                write(man_port->send_fd, man_reply_msg, n + 1);
+                                free(new_job);
+                            } else {
+                                free(new_job);
 
-                            n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "Downloading file %s from host %i\n",
-                                         new_packet->payload, dns_lookup_response);
+                                // get host id using the returned value
+                                long tmp = strtol(dns_lookup_buffer, NULL, 10);
+
+                                // Create a new packet to request ping
+                                new_packet = (struct packet *) malloc(sizeof(struct packet));
+                                new_packet->src = (char) host_id;
+                                new_packet->dst = (char) tmp;
+                                new_packet->type = (char) PKT_PING_REQ;
+                                new_packet->length = 0;
+
+                                // Create job to send ping req
+                                new_job = (struct host_job *) malloc(sizeof(struct host_job));
+                                new_job->packet = new_packet;
+                                new_job->type = JOB_SEND_PKT_ALL_PORTS;
+                                job_q_add(&job_q, new_job);
+
+                                // Create job to wait for ping
+                                new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
+                                ping_reply_received = 0;
+                                new_job2->type = JOB_PING_WAIT_FOR_REPLY;
+                                new_job2->ping_timer = 40;
+                                job_q_add(&job_q, new_job2);
+                            }
+                            memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
+                        } else if (new_job->ping_timer > 1) {
+                            new_job->ping_timer--;
+                            job_q_add(&job_q, new_job);
+                        } else {
+                            n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup time out");
+                            man_reply_msg[n] = '\0';
+                            write(man_port->send_fd, man_reply_msg, strnlen(man_reply_msg, MAN_MSG_LENGTH));
+                            free(new_job);
+                        }
+                        break;
+                    }
+                    case JOB_DNS_DOWNLOAD_WAIT_FOR_REPLY: {
+                        if (dns_lookup_received) {
+                            dns_lookup_received = false;
+                            if (strncmp(dns_lookup_buffer, "FAIL", 4) == 0) {
+                                n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup failed");
+                                man_reply_msg[n] = '\0';
+                                write(man_port->send_fd, man_reply_msg, n + 1);
+                                free(new_job);
+                            } else {
+                                dns_lookup_response = (int) dns_lookup_buffer[0];
+                                new_packet = (struct packet *) malloc(sizeof(struct packet));
+                                new_packet->src = (char) host_id;
+                                new_packet->dst = (char) dns_lookup_response;
+                                new_packet->type = (char) PKT_FILE_DOWNLOAD_REQ;
+                                for (i = 0; i < PAYLOAD_MAX && new_job->fname_download[i] != '\0'; i++) {
+                                    new_packet->payload[i] = new_job->fname_download[i];
+                                }
+                                new_packet->payload[i] = '\0';
+                                new_packet->length = i;
+
+                                n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "Downloading file %s from host %i\n",
+                                             new_packet->payload, dns_lookup_response);
+                                man_reply_msg[n] = '\n';
+                                write(man_port->send_fd, man_reply_msg, n + 1);
+
+                                free(new_job);
+
+                                new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
+                                new_job2->packet = new_packet;
+                                new_job2->type = JOB_SEND_PKT_ALL_PORTS;
+                                job_q_add(&job_q, new_job2);
+                            }
+                            memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
+                        } else if (new_job->ping_timer > 1) {
+                            new_job->ping_timer--;
+                            job_q_add(&job_q, new_job);
+                        } else {
+                            n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup time out");
                             man_reply_msg[n] = '\n';
                             write(man_port->send_fd, man_reply_msg, n + 1);
-
                             free(new_job);
-
-                            new_job2 = (struct host_job *) malloc(sizeof(struct host_job));
-                            new_job2->packet = new_packet;
-                            new_job2->type = JOB_SEND_PKT_ALL_PORTS;
-                            job_q_add(&job_q, new_job2);
                         }
-                        memset(dns_lookup_buffer, 0, MAX_DNS_NAME_LENGTH);
-                    } else if (new_job->ping_timer > 1) {
-                        new_job->ping_timer--;
-                        job_q_add(&job_q, new_job);
-                    } else {
-                        n = snprintf(man_reply_msg, MAN_MSG_LENGTH, "DNS lookup time out");
-                        man_reply_msg[n] = '\n';
-                        write(man_port->send_fd, man_reply_msg, n + 1);
-                        free(new_job);
+                        break;
                     }
-                    break;
                 }
             }
-
         }
 
         /* The host goes to sleep for 10 ms */

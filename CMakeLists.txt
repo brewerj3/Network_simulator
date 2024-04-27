@@ -4,13 +4,13 @@ set(projname "Network_simulator_02")
 project(${projname}
         VERSION 2.0
         DESCRIPTION "Simple network simulator using pipes and sockets"
-        LANGUAGES C )
+        LANGUAGES C)
 
-message( STATUS "CMAKE_SOURCE_DIR = [${CMAKE_SOURCE_DIR}]" )
+message(STATUS "CMAKE_SOURCE_DIR = [${CMAKE_SOURCE_DIR}]")
 
 set(CMAKE_C_STANDARD 17)
 
-set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -Wall -Wextra")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
 #set(CMAKE_C_FLAGS_DEBUG  "${CMAKE_C_FLAGS_DEBUG} -Debug ")
 
 add_executable(net367

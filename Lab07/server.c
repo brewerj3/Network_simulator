@@ -145,13 +145,15 @@ void server_main(int server_id) {
         control_count++;
         if (control_count >= CONTROL_COUNT_MAX) {
             control_count = 0;
+
+            // Create a control packet
             new_packet = (struct packet *) malloc(sizeof(struct packet));
             new_packet->src = (char) server_id;
             new_packet->type = (char) PKT_CONTROL_PKT;
-            new_packet->length = 0;
+            new_packet->length = PKT_CONTROL_LENGTH;
             new_packet->payload[PKT_SENDER_TYPE] = 'H';
             new_packet->payload[PKT_SENDER_CHILD] = 'Y';
-            new_packet->dst = (char) 0;
+            new_packet->dst = (char) 10;
 
             new_job = (struct server_job *) malloc(sizeof(struct server_job));
             new_job->packet = new_packet;
@@ -163,7 +165,7 @@ void server_main(int server_id) {
         for (k = 0; k < node_port_num; k++) {
             in_packet = (struct packet *) malloc(sizeof(struct packet));
             n = packet_recv(node_port[k], in_packet);
-            if (n > 0) {
+            if (n > 0 && in_packet->dst == server_id) {
                 // Handle packets
                 new_job = (struct server_job *) malloc(sizeof(struct server_job));
                 new_job->in_port_index = k;
@@ -188,13 +190,14 @@ void server_main(int server_id) {
                     case (char) PKT_CONTROL_PKT: {
                         free(new_job->packet);
                         free(new_job);
+                        break;
                     }
                     default: {
                         free(in_packet);
                         free(new_job);
+                        break;
                     }
                 }
-
             } else {
                 free(in_packet);
             }
@@ -209,6 +212,14 @@ void server_main(int server_id) {
             switch (new_job->type) {
                 case JOB_SEND_PKT_ALL_PORTS: {
                     for (k = 0; k < node_port_num; k++) {
+                        if (new_job->packet->type != (char) PKT_CONTROL_PKT) {
+//                            printf("server sending to node %i\n", new_job->packet->dst);
+//                            printf("src = %i, dst = %i, type = %i, length = %i\n"
+//                                    , new_job->packet->src
+//                                    , new_job->packet->dst
+//                                    , new_job->packet->type
+//                                    , new_job->packet->length);
+                        }
                         packet_send(node_port[k], new_job->packet);
                     }
                     free(new_job->packet);
