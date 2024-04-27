@@ -398,7 +398,7 @@ int load_net_data_file() {
     scanf("%s", fname);
     fp = fopen(fname, "r");
     if (fp == NULL) {
-        printf("net.c: File did not open\n");
+        fprintf(stderr, "net.c: File did not open\n");
         return (0);
     }
 

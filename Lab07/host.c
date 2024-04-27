@@ -276,6 +276,7 @@ _Noreturn void host_main(int host_id) {
         p = p->next;
     }
 
+    bool first_loop_done = false;
 /* Initialize the job queue */
     job_q_init(&job_q);
 
@@ -301,11 +302,16 @@ _Noreturn void host_main(int host_id) {
             new_job->type = JOB_SEND_PKT_ALL_PORTS;
             job_q_add(&job_q, new_job);
         }
+        if (first_loop_done == false) {
+            first_loop_done = true;
+            printf("host %i has %i jobs in first loop after control packet setup\n", host_id, job_q_num(&job_q));
+        }
 
         /* Execute command from manager, if any */
 
         /* Get command from manager */
         n = get_man_command(man_port, man_msg, &man_cmd);
+
 
         /* Execute command */
         if (n > 0) {
@@ -509,6 +515,7 @@ _Noreturn void host_main(int host_id) {
            * Put jobs in job queue
           */
 
+
         for (k = 0; k < node_port_num; k++) { /* Scan all ports */
 
             in_packet = (struct packet *) malloc(sizeof(struct packet));
@@ -518,7 +525,7 @@ _Noreturn void host_main(int host_id) {
                 new_job = (struct host_job *) malloc(sizeof(struct host_job));
                 new_job->in_port_index = k;
                 new_job->packet = in_packet;
-
+#ifdef DEBUG
                 if (host_id == 0 && in_packet->type != (char) PKT_CONTROL_PKT) {
                     printf("host %i receiving non control_pkt on port %i\n"
                            "src = %i, dst = %i, type = %i, length = %i\n"
@@ -529,7 +536,7 @@ _Noreturn void host_main(int host_id) {
                            , new_job->packet->type
                            , new_job->packet->length);
                 }
-
+#endif
                 switch (in_packet->type) {
                     /* Consider the packet type */
 

@@ -11,10 +11,7 @@
 #ifndef NETWORK_SIMULATOR_02_SWITCH_H
 #define NETWORK_SIMULATOR_02_SWITCH_H
 
-#include <stdbool.h>
-
 #define MAX_LOOKUP_TABLE_SIZE 256
-
 
 _Noreturn void switch_main(int switch_id);
 

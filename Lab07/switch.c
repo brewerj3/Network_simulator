@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "switch.h"
 #include "net.h"
@@ -131,6 +132,8 @@ _Noreturn void switch_main(int switch_id) {
 
     while (true) {
         // No need to get commands from the manager
+
+        // Handle sending control packets
         control_count++;
         if (control_count >= CONTROL_COUNT_MAX) {
             control_count = 0;
@@ -157,14 +160,49 @@ _Noreturn void switch_main(int switch_id) {
             n = packet_recv(node_port[k], in_packet);
 
             if (n > 0) {    // If n > 0 there is a packet to process
-                if (in_packet->type == (char) PKT_CONTROL_PKT) {
-                    char pkt_sender_type = in_packet->payload[PKT_SENDER_TYPE];
-                    char pkt_sender_child = in_packet->payload[PKT_SENDER_CHILD];
-                    if (pkt_sender_type == 'S') {
-                        int in_packet_root_id = * (int *) (&in_packet->payload[PKT_ROOT_ID]);
-                        int in_packet_root_dst = * (int *) (&in_packet->payload[PKT_ROOT_DIST]);
+                switch (in_packet->type) {
+                    case (char) PKT_PING_REQ:
+                    case (char) PKT_PING_REPLY:
+                    case (char) PKT_FILE_UPLOAD_START:
+                    case (char) PKT_FILE_UPLOAD_MIDDLE:
+                    case (char) PKT_FILE_UPLOAD_END:
+                    case (char) PKT_FILE_DOWNLOAD_REQ:
+                    case (char) PKT_DNS_REGISTER:
+                    case (char) PKT_DNS_REGISTER_REPLY:
+                    case (char) PKT_DNS_LOOKUP:
+                    case (char) PKT_DNS_LOOKUP_REPLY: {
+                        new_job = (struct switch_job *) malloc(sizeof(struct switch_job));
+                        new_job->in_port_index = k;
+                        new_job->packet = in_packet;
+                        int dst = (int) in_packet->dst;
+                        int source = 0;
+                        source = (int) in_packet->src;
+
+                        if (table.isValid[dst] == true) {
+                            new_job->type = JOB_FORWARD_PACKET;
+                            new_job->out_port_index = table.port_number[dst];
+                        } else {
+                            new_job->type = JOB_SEND_PKT_ALL_SWITCH_PORTS;
+                        }
+
+                        // Check if port can be added to the lookup table
+                        if (table.isValid[source] == false) {
+                            table.isValid[source] = true;
+                            table.port_number[source] = new_job->in_port_index;
+                        }
+
+                        // Add the job to the queue
+                        switch_job_q_add(&job_q, new_job);
+                        break;
+                    }
+                    case (char) PKT_CONTROL_PKT: {
+                        char pkt_sender_type = in_packet->payload[PKT_SENDER_TYPE];
+                        char pkt_sender_child = in_packet->payload[PKT_SENDER_CHILD];
+                        if (pkt_sender_type == 'S') {
+                            int in_packet_root_id = * (int *) (&in_packet->payload[PKT_ROOT_ID]);
+                            int in_packet_root_dst = * (int *) (&in_packet->payload[PKT_ROOT_DIST]);
 #ifdef DEBUG
-                        if (switch_id == 4) {
+                            if (switch_id == 4) {
                             printf("\nswitch %X received from node %hhX\n"
                                     , switch_id
                                     , in_packet->src);
@@ -180,77 +218,37 @@ _Noreturn void switch_main(int switch_id) {
                             printf("\n");
                         }
 #endif
-                        if (in_packet_root_id < local_root_id) {
-                            local_root_id = in_packet_root_id;
-                            local_parent = k;
-                            local_root_dist = in_packet_root_dst + 1;
-                        } else if (in_packet_root_id == local_root_id) {
-                            if (local_root_dist > in_packet_root_dst + 1) {
+                            if (in_packet_root_id < local_root_id) {
+                                local_root_id = in_packet_root_id;
                                 local_parent = k;
                                 local_root_dist = in_packet_root_dst + 1;
+                            } else if (in_packet_root_id == local_root_id) {
+                                if (local_root_dist > in_packet_root_dst + 1) {
+                                    local_parent = k;
+                                    local_root_dist = in_packet_root_dst + 1;
+                                }
                             }
                         }
-                    }
-                    // Update port tree
-                    if (pkt_sender_type == 'H') {
-                        local_port_tree[k] = true;
-                    } else if (pkt_sender_type == 'S') {
-                        if (local_parent == k) {
+                        // Update port tree
+                        if (pkt_sender_type == 'H') {
                             local_port_tree[k] = true;
-                        } else if (pkt_sender_child == 'Y') {
-                            local_port_tree[k] = true;
+                        } else if (pkt_sender_type == 'S') {
+                            if (local_parent == k) {
+                                local_port_tree[k] = true;
+                            } else if (pkt_sender_child == 'Y') {
+                                local_port_tree[k] = true;
+                            } else {
+                                local_port_tree[k] = false;
+                            }
                         } else {
                             local_port_tree[k] = false;
                         }
-                    } else {
-                        local_port_tree[k] = false;
+                        free(in_packet);
+                        break;
                     }
-                    int source = (int) in_packet->src;
-                    if (table.isValid[source] == false) {
-                        table.isValid[source] = true;
-                        table.port_number[source] = k;
+                    default: {
+                        free(in_packet);
                     }
-                    free(in_packet);
-                } else {
-                    new_job = (struct switch_job *) malloc(sizeof(struct switch_job));
-                    new_job->in_port_index = k;
-                    new_job->packet = in_packet;
-                    int dst = (int) in_packet->dst;
-                    int source = 0;
-                    source = (int) in_packet->src;
-
-                    if (table.isValid[dst] == true) {
-                        new_job->type = JOB_FORWARD_PACKET;
-                        new_job->out_port_index = table.port_number[dst];
-                    } else {
-                        new_job->type = JOB_SEND_PKT_ALL_SWITCH_PORTS;
-                    }
-                    if (in_packet->type == (char) PKT_PING_REPLY || in_packet->type == (char) PKT_PING_REQ) {
-                        printf("switch %i receiving %i bytes of a non control_pkt on port %i\n"
-                               "src = %i, dst = %i, type = %i, length = %i\n"
-                                , switch_id
-                                , n
-                                , k
-                                , new_job->packet->src
-                                , new_job->packet->dst
-                                , new_job->packet->type
-                                , new_job->packet->length);
-                        if (new_job->type == JOB_SEND_PKT_ALL_SWITCH_PORTS) {
-                            printf("Sending on all ports\n");
-                        } else {
-                            printf("forwarding on port %i dst = %i\n", new_job->out_port_index, dst);
-                        }
-                    }
-
-                    // Check if port can be added to the lookup table
-                    if (table.isValid[source] == false) {
-                        table.isValid[source] = true;
-                        table.port_number[source] = new_job->in_port_index;
-                        printf("switch %i table.portnumber[%i] = %i\n", switch_id, source, table.port_number[source]);
-                    }
-
-                    // Add the job to the queue
-                    switch_job_q_add(&job_q, new_job);
                 }
             } else {
                 free(in_packet);
