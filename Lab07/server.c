@@ -212,14 +212,6 @@ void server_main(int server_id) {
             switch (new_job->type) {
                 case JOB_SEND_PKT_ALL_PORTS: {
                     for (k = 0; k < node_port_num; k++) {
-                        if (new_job->packet->type != (char) PKT_CONTROL_PKT) {
-//                            printf("server sending to node %i\n", new_job->packet->dst);
-//                            printf("src = %i, dst = %i, type = %i, length = %i\n"
-//                                    , new_job->packet->src
-//                                    , new_job->packet->dst
-//                                    , new_job->packet->type
-//                                    , new_job->packet->length);
-                        }
                         packet_send(node_port[k], new_job->packet);
                     }
                     free(new_job->packet);

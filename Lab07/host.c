@@ -302,10 +302,6 @@ _Noreturn void host_main(int host_id) {
             new_job->type = JOB_SEND_PKT_ALL_PORTS;
             job_q_add(&job_q, new_job);
         }
-        if (first_loop_done == false) {
-            first_loop_done = true;
-            printf("host %i has %i jobs in first loop after control packet setup\n", host_id, job_q_num(&job_q));
-        }
 
         /* Execute command from manager, if any */
 
@@ -477,11 +473,6 @@ _Noreturn void host_main(int host_id) {
                     char file_name[MAX_FILE_NAME];
                     sscanf(man_msg, "%s %s", domain_name, file_name);
 
-#ifdef DEBUG
-                    printf("domain name = %s\n", domain_name);
-                    printf("file name   = %s\n", file_name);
-#endif
-
                     new_packet = (struct packet *) malloc(sizeof(struct packet));
                     new_packet->src = (char) host_id;
                     new_packet->dst = DNS_SERVER_ID;
@@ -525,30 +516,16 @@ _Noreturn void host_main(int host_id) {
                 new_job = (struct host_job *) malloc(sizeof(struct host_job));
                 new_job->in_port_index = k;
                 new_job->packet = in_packet;
-#ifdef DEBUG
-                if (host_id == 0 && in_packet->type != (char) PKT_CONTROL_PKT) {
-                    printf("host %i receiving non control_pkt on port %i\n"
-                           "src = %i, dst = %i, type = %i, length = %i\n"
-                           , host_id
-                           , k
-                           , new_job->packet->src
-                           , new_job->packet->dst
-                           , new_job->packet->type
-                           , new_job->packet->length);
-                }
-#endif
                 switch (in_packet->type) {
                     /* Consider the packet type */
 
 /* =========================== Ping =========================== */
                     case (char) PKT_PING_REQ: {
-                        printf("host %i ping REQ on port %i\n", host_id, k);
                         new_job->type = JOB_PING_SEND_REPLY;
                         job_q_add(&job_q, new_job);
                         break;
                     }
                     case (char) PKT_PING_REPLY: {
-                        printf("hostid ping RECV = %i\n", host_id);
                         ping_reply_received = 1;
                         free(in_packet);
                         free(new_job);
@@ -572,7 +549,6 @@ _Noreturn void host_main(int host_id) {
                     }
 /* =========================== Download =========================== */
 				    case (char) PKT_FILE_DOWNLOAD_REQ: {
-                        printf("Got download request\n");
                         new_job->type = JOB_FILE_UPLOAD_SEND;
                         for (i = 0; in_packet->payload[i] != '\0'; i++) {
                             new_job->fname_upload[i] = in_packet->payload[i];
@@ -626,11 +602,6 @@ _Noreturn void host_main(int host_id) {
                     /* Send packets on all ports */
                     case JOB_SEND_PKT_ALL_PORTS: {
                         for (k = 0; k < node_port_num; k++) {
-                            if (new_job->packet->type == (char) PKT_PING_REPLY) {
-                                printf("host %i sending ping reply on port %i\n", host_id, k);
-                                printf("src = %i, dst = %i, type = %i, length = %i\n", new_job->packet->src,
-                                       new_job->packet->dst, new_job->packet->type, new_job->packet->length);
-                            }
                             packet_send(node_port[k], new_job->packet);
                         }
                         free(new_job->packet);
@@ -641,7 +612,7 @@ _Noreturn void host_main(int host_id) {
                         /* The next three jobs deal with the pinging process */
                     case JOB_PING_SEND_REPLY: {
                         /* Send a ping reply packet */
-                        printf("Host %i replying\n", host_id);
+
                         /* Create ping reply packet */
                         new_packet = (struct packet *) malloc(sizeof(struct packet));
                         new_packet->dst = new_job->packet->src;
@@ -845,8 +816,6 @@ _Noreturn void host_main(int host_id) {
 
                     case JOB_DNS_REGISTER_WAIT_FOR_REPLY: {
                         if (dns_register_received) {
-                            //printf("\nDNS register buffer: |%s\n", dns_register_buffer);
-                            //printf("Length%zu\n", strnlen(dns_register_buffer, 100));
                             memset(man_reply_msg, 0, MAN_MSG_LENGTH);
                             switch (dns_register_buffer[0]) {
                                 case 'S': {

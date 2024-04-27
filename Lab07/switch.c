@@ -201,23 +201,6 @@ _Noreturn void switch_main(int switch_id) {
                         if (pkt_sender_type == 'S') {
                             int in_packet_root_id = * (int *) (&in_packet->payload[PKT_ROOT_ID]);
                             int in_packet_root_dst = * (int *) (&in_packet->payload[PKT_ROOT_DIST]);
-#ifdef DEBUG
-                            if (switch_id == 4) {
-                            printf("\nswitch %X received from node %hhX\n"
-                                    , switch_id
-                                    , in_packet->src);
-                            printf("packet sender type = %c\n", pkt_sender_type);
-                            printf("packet sender child = %c\n", in_packet->payload[PKT_SENDER_CHILD]);
-                            printf("int in_packet_root_id = %i\n", in_packet_root_id);
-                            printf("int in_packet_root_dst = %i\n", in_packet_root_dst);
-                            printf("local root dist = %i\n", local_root_dist);
-                            printf("Payload:\n");
-                            for (size_t iter = 0; iter <= PKT_SENDER_CHILD; iter++) {
-                                printf("%02hhX ", in_packet->payload[iter]);
-                            }
-                            printf("\n");
-                        }
-#endif
                             if (in_packet_root_id < local_root_id) {
                                 local_root_id = in_packet_root_id;
                                 local_parent = k;
@@ -260,13 +243,6 @@ _Noreturn void switch_main(int switch_id) {
 
             // Get a job from the queue
             new_job = switch_job_q_remove(&job_q);
-            if(new_job != NULL) {
-                if (switch_id == 3 && new_job->packet->type == (char) PKT_PING_REPLY) {
-                    printf("switch 3 sending ping reply to host %i\n", new_job->packet->dst);
-                    printf("switch 3 table.portnumber[%i] = %i\n", new_job->packet->dst,
-                           table.port_number[(int) new_job->packet->dst]);
-                }
-            }
 
             // Send packets
             switch (new_job->type) {
